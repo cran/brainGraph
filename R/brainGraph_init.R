@@ -38,6 +38,7 @@
 #' \item{lhrh}{A \code{data.table} of left- and right-hemispheric volumetric
 #' data}
 #' \item{all.dat}{A merged \code{data.table} of \code{covars} and \code{lhrh}}
+#' \item{all.dat.tidy}{A 'tidied' version of \code{all.dat}}
 #'
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 #' @examples
@@ -53,12 +54,16 @@ brainGraph_init <- function(atlas=c('aal116', 'aal90', 'brainsuite', 'destrieux'
                             modality=c('thickness', 'volume', 'lgi', 'area'),
                             use.mean=FALSE, exclude.subs=NULL) {
 
-  Group <- Study.ID <- hemi <- name <- mean.lh <- mean.rh <- NULL
+  Group <- Study.ID <- hemi <- name <- mean.lh <- mean.rh <- group.mean <- NULL
+  value <- region <- NULL
   kNumDensities <- length(densities)
   atlas <- match.arg(atlas)
   atlas.dt <- eval(parse(text=atlas))
   kNumVertices <- nrow(atlas.dt)
 
+  if (!file.exists(paste0(datadir, '/covars.csv'))) {
+    stop(sprintf('File "covars.csv" does not exist in %s', datadir))
+  }
   covars <- fread(paste0(datadir, '/covars.csv'))
   covars[, Group := as.factor(Group)]
   setkey(covars, Study.ID, Group)
@@ -66,6 +71,16 @@ brainGraph_init <- function(atlas=c('aal116', 'aal90', 'brainsuite', 'destrieux'
   kNumGroups <- length(groups)
 
   modality <- match.arg(modality)
+  if (!file.exists(paste0(datadir, '/lh_', atlas, '_', modality, '.csv'))) {
+    stop(sprintf('File "%s" does not exist in %s',
+                 paste0(datadir, '/lh_', atlas, '_', modality, '.csv'),
+                 datadir))
+  }
+  if (!file.exists(paste0(datadir, '/rh_', atlas, '_', modality, '.csv'))) {
+    stop(sprintf('File "%s" does not exist in %s',
+                 paste0(datadir, '/rh_', atlas, '_', modality, '.csv'),
+                 datadir))
+  }
   lh <- fread(paste0(datadir, '/lh_', atlas, '_', modality, '.csv'))
   setkey(lh, Study.ID)
   rh <- fread(paste0(datadir, '/rh_', atlas, '_', modality, '.csv'))
@@ -100,10 +115,33 @@ brainGraph_init <- function(atlas=c('aal116', 'aal90', 'brainsuite', 'destrieux'
     covars.scgm <- fread(paste0(datadir, '/covars.scgm.csv'))
     covars.scgm[, Group := as.factor(Group)]
     setkey(covars.scgm, Study.ID, Group)
+
+    if (!is.null(exclude.subs)) {
+      covars.scgm <- covars.scgm[!Study.ID %in% exclude.subs]
+      scgm <- scgm[!Study.ID %in% exclude.subs]
+    }
+
+    all.dat.scgm <- merge(covars.scgm, scgm)
+    all.dat.scgm.tidy <- melt(all.dat.scgm, id.vars=names(covars.scgm),
+                              variable.name='region')
+    all.dat.scgm.tidy[, modality := modality]
+    all.dat.scgm.tidy[, group.mean := mean(value), by=list(Group, region)]
+    setkey(all.dat.scgm.tidy, Group, region)
   }
 
-  return(list(atlas=atlas, densities=densities, modality=modality,
+  all.dat.tidy <- melt(all.dat, id.vars=names(covars), variable.name='region')
+  all.dat.tidy[, modality := modality]
+  all.dat.tidy[, group.mean := mean(value), by=list(Group, region)]
+  setkey(all.dat.tidy, Group, region)
+
+  res <- list(atlas=atlas, densities=densities, modality=modality,
               kNumDensities=kNumDensities, covars=covars, groups=groups,
               kNumGroups=kNumGroups, kNumVertices=kNumVertices, lhrh=lhrh,
-              all.dat=all.dat))
+              all.dat=all.dat, all.dat.tidy=all.dat.tidy)
+  if (isTRUE(grepl('scgm', atlas))) {
+    res <- c(res, list(covars.scgm=covars.scgm, scgm=scgm,
+                       all.dat.scgm=all.dat.scgm,
+                       all.dat.scgm.tidy=all.dat.scgm.tidy))
+  }
+  return(res)
 }

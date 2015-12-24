@@ -55,19 +55,12 @@ small.world <- function(g, rand) {
           function(x) vapply(x,
               function(y) graph_attr(y, 'Cp'), numeric(1)),
                                  numeric(length(rand[[1]]))))
-      N <- vapply(rand, length, numeric(1))
+      N <- lengths(rand)
     }
   }
   Cp.norm <- Cp / Cp.rand
   Lp.norm <- Lp / Lp.rand
   sigma <- Cp.norm / Lp.norm
-  Lp <- round(Lp, 4)
-  Lp.rand <- round(Lp.rand, 4)
-  Lp.norm <- round(Lp.norm, 4)
-  Cp <- round(Cp, 4)
-  Cp.rand <- round(Cp.rand, 4)
-  Cp.norm <- round(Cp.norm, 4)
-  sigma <- round(sigma, 4)
   return(data.table(density=densities, N, Lp, Cp, Lp.rand, Cp.rand, Lp.norm,
                     Cp.norm, sigma))
 }

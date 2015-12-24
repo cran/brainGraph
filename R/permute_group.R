@@ -31,7 +31,6 @@
 #' @param level A character string for the attribute level to calculate
 #' differences; either 'graph', 'vertex', 'lobe', or 'other'
 #' @param atlas Character string of the atlas name
-#' @param atlas.dt A data table containing the specific atlas data
 #' @param measure A character string, either 'btwn.cent', 'degree', 'E.nodal',
 #' 'knn', or 'transitivity', 'vulnerability' (specific to the vertex \emph{level})
 #' @param .function A custom function you can pass (if \emph{level} is 'other')
@@ -48,16 +47,14 @@
 #' \dontrun{
 #' m <- get.resid(all.thick, covars)
 #' myPerms <- shuffleSet(n=nrow(m$resids), nset=1e3)
-#' out <- permute.group(myPerms, densities[N], m$resids, 'graph', atlas='dk',
-#'   atlas.dt)
+#' out <- permute.group(myPerms, densities[N], m$resids, 'graph', atlas='dk')
 #' out <- permute.group(myPerms, densities[N], m$resids, 'vertex')
 #' out <- permute.group(myPerms, densities[N], m$resids, 'other',
 #'   .function=myFun)
 #' }
 
 permute.group <- function(permSet, density, resids,
-                          level=c('graph', 'vertex', 'lobe', 'other'),
-                          atlas, atlas.dt=NULL,
+                          level=c('graph', 'vertex', 'lobe', 'other'), atlas,
                           measure=c('btwn.cent', 'degree', 'E.nodal',
                                     'knn', 'transitivity', 'vulnerability'),
                           .function=NULL) {
@@ -73,9 +70,11 @@ permute.group <- function(permSet, density, resids,
   groups <- as.numeric(resids$Group)
   out <- foreach(i=seq_len(nrow(permSet)), .combine='rbind',
                  .export='assign_lobes') %dopar% {
-    corrs1 <- corr.matrix(resids[which(groups[permSet[i, ]] == 1), !'Group', with=F],
+    corrs1 <- corr.matrix(as.matrix(resids[which(groups[permSet[i, ]] == 1),
+                          !c('Study.ID', 'Group'), with=F]),
                           density=density)
-    corrs2 <- corr.matrix(resids[which(groups[permSet[i, ]] == 2), !'Group', with=F],
+    corrs2 <- corr.matrix(as.matrix(resids[which(groups[permSet[i, ]] == 2),
+                          !c('Study.ID', 'Group'), with=F]),
                           density=density)
     g1 <- graph_from_adjacency_matrix(corrs1$r.thresh, mode='undirected', diag=F)
     g2 <- graph_from_adjacency_matrix(corrs2$r.thresh, mode='undirected', diag=F)
@@ -121,8 +120,8 @@ permute.group <- function(permSet, density, resids,
 
     } else {
       g1$atlas <- g2$atlas <- atlas
-      g1 <- assign_lobes(g1, atlas.dt, rand=T)
-      g2 <- assign_lobes(g2, atlas.dt, rand=T)
+      g1 <- assign_lobes(g1, rand=T)
+      g2 <- assign_lobes(g2, rand=T)
 
       # Graph-level
       #-----------------------------------
@@ -156,8 +155,8 @@ permute.group <- function(permSet, density, resids,
       # "Lobe" level
       #-----------------------------------
       } else if (level == 'lobe') {
-        t1 <- as.data.table(count_interlobar(g1, 'Temporal', atlas.dt))
-        t2 <- as.data.table(count_interlobar(g2, 'Temporal', atlas.dt))
+        t1 <- as.data.table(count_interlobar(g1, 'Temporal'))
+        t2 <- as.data.table(count_interlobar(g2, 'Temporal'))
         tdiff <- t1 - t2
         tmp <- data.table(density=density, diff=tdiff)
       }

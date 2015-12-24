@@ -22,6 +22,8 @@
 #' @param weights A numeric vector of edge weights; if 'NULL', and if the graph
 #' has edge attribute 'weight', then that will be used. To avoid using weights,
 #' this should be 'NA'
+#' @param .parallel Logical indicating whether or not to use \code{foreach}
+#' (default: TRUE)
 #' @export
 #'
 #' @return A vector of the local efficiencies for each vertex of the graph (if
@@ -32,7 +34,11 @@
 #' small-world networks}. Phys Rev Lett, 87.19:198701.
 
 graph.efficiency <- function(g, type=c('local', 'nodal', 'global'),
-                             weights=NULL) {
+                             weights=NULL, .parallel=TRUE) {
+  if (!is.igraph(g)) {
+    stop(sprintf('%s is not a graph object', deparse(substitute(g))))
+  }
+  x <- NULL
   if ('degree' %in% vertex_attr_names(g)) {
     degs <- V(g)$degree
   } else {
@@ -55,16 +61,27 @@ graph.efficiency <- function(g, type=c('local', 'nodal', 'global'),
     nodes <- which(degs > 1)
 
     if (length(nodes) > 0) {
-      eff[nodes] <- simplify2array(mclapply(nodes, function(x) {
-        neighbs <- neighbors(g, v=x)
-        g.sub <- induced.subgraph(g, neighbs)
-        Nv <- vcount(g.sub)
-  
-        paths <- shortest.paths(g.sub, weights=weights)
-        paths <- paths[upper.tri(paths)]
-        2 / Nv / (Nv - 1) * sum(1 / paths[paths != 0])
-        }, mc.cores=detectCores())
-      )
+      if (isTRUE(.parallel)) {
+        eff[nodes] <- foreach (x=nodes, .combine='c') %dopar% {
+          neighbs <- neighbors(g, v=x)
+          g.sub <- induced.subgraph(g, neighbs)
+          Nv <- vcount(g.sub)
+
+          paths <- shortest.paths(g.sub, weights=weights)
+          paths <- paths[upper.tri(paths)]
+          2 / Nv / (Nv - 1) * sum(1 / paths[paths != 0])
+        }
+      } else {
+        for (i in nodes) {
+          neighbs <- neighbors(g, v=i)
+          g.sub <- induced.subgraph(g, neighbs)
+          Nv <- vcount(g.sub)
+
+          paths <- shortest.paths(g.sub, weights=weights)
+          paths <- paths[upper.tri(paths)]
+          eff[i] <- 2 / Nv / (Nv - 1) * sum(1 / paths[paths != 0])
+        }
+      }
     }
   } else {
     Nv <- length(degs)
