@@ -9,6 +9,8 @@
 #' @param subject A character vector indicating subject ID (default: NULL)
 #' @param group A character vector indicating group membership (default: NULL)
 #' @param rand Logical indicating if the graph is random or not (default: FALSE)
+#' @param use.parallel Logical indicating whether or not to use \emph{foreach}
+#'   (default: TRUE)
 #' @export
 #'
 #' @return g A copy of the same graph, with the following attributes:
@@ -39,11 +41,10 @@
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
 set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
-                                      subject=NULL, group=NULL, rand=FALSE) {
+                                      subject=NULL, group=NULL, rand=FALSE,
+                                      use.parallel=TRUE) {
   name <- NULL
-  if (!is.igraph(g)) {
-    stop(sprintf('%s is not a graph object', deparse(substitute(g))))
-  }
+  stopifnot(is_igraph(g))
 
   g$version <- packageVersion('brainGraph')
   if (!'degree' %in% graph_attr_names(g)) V(g)$degree <- degree(g)
@@ -55,7 +56,8 @@ set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
   Nk <- vapply(R, with, numeric(1), Nk)
   Ek <- vapply(R, with, numeric(1), Ek)
   g$rich <- data.frame(phi=round(phi, 4), Nk=Nk, Ek=Ek)
-  g$E.global <- graph.efficiency(g, 'global', weights=NA)
+  g$E.global <- graph.efficiency(g, 'global', weights=NA,
+                                 use.parallel=use.parallel)
   comm <- cluster_louvain(g, weights=NA)
   g$mod <- max(comm$modularity)
 
@@ -82,12 +84,8 @@ set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
 
     if (is.weighted(g)) {
       V(g)$strength <- graph.strength(g)
+      g$strength <- mean(V(g)$strength)
       V(g)$knn.wt <- graph.knn(g)$knn
-      V(g)$E.local.wt <- graph.efficiency(g, type='local')
-      g$E.local.wt <- mean(V(g)$E.local.wt)
-      V(g)$E.nodal.wt <- graph.efficiency(g, 'nodal')
-      g$E.global.wt <- mean(V(g)$E.nodal.wt)
-      g$diameter.wt <- diameter(g)
       R <- lapply(1:max(V(g)$degree),
                   function(x) rich.club.coeff(g, x, weighted=TRUE))
       phi <- vapply(R, with, numeric(1), phi)
@@ -96,25 +94,35 @@ set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
       g$rich.wt <- data.frame(phi=round(phi, 4), Nk=Nk, Ek=Ek)
       comm.wt <- cluster_louvain(g)
       g$mod.wt <- max(comm.wt$modularity)
-
       x <- comm.wt$membership
       V(g)$comm.wt <- match(x, order(table(x), decreasing=TRUE))
       V(g)$color.comm.wt <- color.vertices(V(g)$comm.wt)[V(g)$comm.wt]
       E(g)$color.comm.wt <- color.edges(g, V(g)$comm.wt)
-
-      V(g)$PC.wt <- part.coeff(g, V(g)$comm.wt)
-      V(g)$z.score.wt <- within_module_deg_z_score(g, V(g)$comm.wt)
-
+      V(g)$PC.wt <- part.coeff(g, V(g)$comm.wt, use.parallel=use.parallel)
+      V(g)$z.score.wt <- within_module_deg_z_score(g, V(g)$comm.wt,
+                                                   use.parallel=use.parallel)
       V(g)$transitivity.wt <- transitivity(g, type='weighted')
+
+      # Need to convert weights for distance measures
+      E(g)$weight <- 1 / E(g)$weight
+      V(g)$E.local.wt <- graph.efficiency(g, type='local',
+                                          use.parallel=use.parallel)
+      g$E.local.wt <- mean(V(g)$E.local.wt)
+      V(g)$E.nodal.wt <- graph.efficiency(g, 'nodal', use.parallel=use.parallel)
+      g$E.global.wt <- mean(V(g)$E.nodal.wt)
+      g$diameter.wt <- diameter(g)
       Lpv.wt <- distances(g)
       Lpv.wt[is.infinite(Lpv.wt)] <- NA
       V(g)$Lp.wt <- rowMeans(Lpv.wt, na.rm=TRUE)
+
+      # Convert back to connection strength
+      E(g)$weight <- 1 / E(g)$weight
     }
 
     if (is.directed(g)) {
-      hubs <- hub.score(g)
+      hubs <- hub_score(g)
       g$hub.score <- hubs$value
-      authorities <- authority.score(g)
+      authorities <- authority_score(g)
       g$authority.score <- authorities$value
       V(g)$hub.score <- hubs$vector
       V(g)$authority.score <- authorities$vector
@@ -129,49 +137,46 @@ set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
       if (!'name' %in% vertex_attr_names(g)) V(g)$name <- atlas.dt[, name]
 
       g <- assign_lobes(g)
-      V(g)$color.lobe <- group.cols[V(g)$lobe]
-      E(g)$color.lobe <- color.edges(g, V(g)$lobe)
       g$assortativity.lobe <- assortativity_nominal(g, V(g)$lobe)
       g$assortativity.lobe.hemi <- assortativity_nominal(g, V(g)$lobe.hemi)
 
-      g$asymm <- edge_asymmetry(g)$asymm
-      V(g)$asymm <- edge_asymmetry(g, 'vertex')$asymm
+      g$asymm <- edge_asymmetry(g, use.parallel=use.parallel)$asymm
+      V(g)$asymm <- edge_asymmetry(g, 'vertex', use.parallel=use.parallel)$asymm
 
-      if (atlas == 'destrieux') {
-        V(g)$color.class <- group.cols[V(g)$class]
+      E(g)$dist <- edge_spatial_dist(g)
+      g$spatial.dist <- mean(E(g)$dist)
+      V(g)$dist <- vertex_spatial_dist(g)
+      V(g)$dist.strength <- V(g)$dist * V(g)$degree
+
+      if (atlas %in% c('destrieux', 'destrieux.scgm')) {
         g$assortativity.class <- assortativity_nominal(g, V(g)$class)
-        E(g)$color.class <- color.edges(g, V(g)$class)
       }
-
-      # Add the spatial coordinates for plotting over the brain
-      if ('name' %in% vertex_attr_names(g)) {
-        x <- y <- z <- x.mni <- y.mni <- z.mni <- NULL
-        vorder <- match(V(g)$name, atlas.dt$name)
-        V(g)$x <- atlas.dt[vorder, x]
-        V(g)$y <- atlas.dt[vorder, y]
-        V(g)$z <- atlas.dt[vorder, z]
-        V(g)$x.mni <- atlas.dt[vorder, x.mni]
-        V(g)$y.mni <- atlas.dt[vorder, y.mni]
-        V(g)$z.mni <- atlas.dt[vorder, z.mni]
+      if (atlas == 'dosenbach160') {
+        g$assortativity.network <- assortativity_nominal(g, V(g)$network)
       }
     }
 
     V(g)$knn <- graph.knn(g, weights=NA)$knn
+
+    Lpv <- distances(g, weights=NA)
+    Lpv[is.infinite(Lpv)] <- NA
+    V(g)$Lp <- rowMeans(Lpv, na.rm=TRUE)
+
+    E(g)$btwn <- edge.betweenness(g)
     V(g)$btwn.cent <- centr_betw(g)$res
     V(g)$hubs <- 0  # I define hubs as vertices w/ btwn.cent > mean + sd
     V(g)$hubs[which(V(g)$btwn.cent > mean(V(g)$btwn.cent) + sd(V(g)$btwn.cent))] <- 1
     g$num.hubs <- sum(V(g)$hubs)
-    Lpv <- distances(g, weights=NA)
-    Lpv[is.infinite(Lpv)] <- NA
-    V(g)$Lp <- rowMeans(Lpv, na.rm=TRUE)
     V(g)$ev.cent <- centr_eigen(g)$vector
-    V(g)$lev.cent <- centr_lev(g)
+    V(g)$lev.cent <- centr_lev(g, use.parallel=use.parallel)
     V(g)$coreness <- coreness(g)
     V(g)$transitivity <- transitivity(g, type='local', isolates='zero')
-    V(g)$E.local <- graph.efficiency(g, type='local', weights=NA)
-    V(g)$E.nodal <- graph.efficiency(g, type='nodal', weights=NA)
+    V(g)$E.local <- graph.efficiency(g, type='local', weights=NA,
+                                     use.parallel=use.parallel)
+    V(g)$E.nodal <- graph.efficiency(g, type='nodal', weights=NA,
+                                     use.parallel=use.parallel)
     g$E.local <- mean(V(g)$E.local)
-    V(g)$vulnerability <- vulnerability(g)
+    V(g)$vulnerability <- vulnerability(g, use.parallel=use.parallel)
     g$vulnerability <- max(V(g)$vulnerability)
     V(g)$eccentricity <- eccentricity(g)
 
@@ -188,17 +193,9 @@ set.brainGraph.attributes <- function(g, atlas=NULL, modality=NULL,
 
     V(g)$circle.layout.comm <- order(V(g)$comm, V(g)$degree)
 
-    V(g)$PC <- part.coeff(g, V(g)$comm)
-    V(g)$z.score <- within_module_deg_z_score(g, V(g)$comm)
-
-    # Edge attributes
-    #-----------------------------------------------------------------------------
-    E(g)$btwn <- edge.betweenness(g)
-    E(g)$dist <- edge_spatial_dist(g)
-
-    g$spatial.dist <- mean(E(g)$dist)
-    V(g)$dist <- vertex_spatial_dist(g)
-    V(g)$dist.strength <- V(g)$dist * V(g)$degree
+    V(g)$PC <- part.coeff(g, V(g)$comm, use.parallel=use.parallel)
+    V(g)$z.score <- within_module_deg_z_score(g, V(g)$comm,
+                                              use.parallel=use.parallel)
   }
 
   g

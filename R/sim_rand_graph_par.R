@@ -24,14 +24,11 @@
 #' }
 
 sim.rand.graph.par <- function(g, N, clustering=TRUE, ...) {
-  if (!is.igraph(g)) {
-    stop(sprintf('%s is not a graph object', deparse(substitute(g))))
-  }
-  if (clustering == TRUE) {
-    r <- foreach(i=seq_len(N),
-                  .packages=c('igraph', 'brainGraph')) %dopar% {
+  stopifnot(is_igraph(g))
+  if (isTRUE(clustering)) {
+    r <- foreach(i=seq_len(N), .packages=c('igraph', 'brainGraph')) %dopar% {
       tmp <- sim.rand.graph.clust(g, ...)
-      tmp$g <- set.brainGraph.attributes(tmp$g, rand=TRUE)
+      tmp <- set.brainGraph.attributes(tmp, rand=TRUE)
       tmp
     }
   } else {

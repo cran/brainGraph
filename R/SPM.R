@@ -1,9 +1,8 @@
 #' Perform between-group tests at each vertex for a given vertex measure
 #'
-#' This function takes two lists of graphs (the length of each equaling the
-#' number of subjects per group) and performs either a linear model, 2-sample
-#' t-test, or 2-sample Wilcoxon test at each vertex for a given vertex measure
-#' (e.g. \emph{degree}).
+#' This function takes a list of \code{igraph} graphs and performs either a
+#' linear model, 2-sample t-test, or 2-sample Wilcoxon test at each vertex for a
+#' given vertex measure (e.g. \emph{degree}).
 #'
 #' You will need to provide a \code{data.table} of covariates, of which
 #' \emph{Study.ID} and \emph{Group} need to be column names. Additionally, all
@@ -52,7 +51,7 @@
 #'   \emph{df} (graph-level attribute of the degrees of freedom)}
 #' \item{perm}{A list containing: \emph{null.dist} (the null distribution of
 #'   maximum t-statistics), \emph{thresh} (the t-statistic value corresponding
-#'   to 100\eqn{1 - \alpha}\% of the null distribution)}
+#'   to \eqn{100 \times (1 - \alpha)}\% of the null distribution)}
 #'
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 #' @references Nichols TE & Holmes AP (2001). \emph{Nonparametric permutation
@@ -80,9 +79,8 @@ SPM <- function(g, measure, outcome=measure,
   meas <- vapply(g, vertex_attr, numeric(Nv), measure)
   g.diffs <- make_empty_brainGraph(g[[1]])
 
-  id <- vapply(g, graph_attr, character(1), 'name')
-  groups <- vapply(g, graph_attr, character(1), 'Group')
-  meas.id.dt <- data.table(Study.ID=id, Group=groups)
+  meas.id.dt <- data.table(Study.ID=vapply(g, graph_attr, character(1), 'name'),
+                           Group=vapply(g, graph_attr, character(1), 'Group'))
   setkey(meas.id.dt, Group, Study.ID)
   meas.id.dt <- cbind(meas.id.dt, t(meas))
   setnames(meas.id.dt, 3:(Nv + 2), V(g.diffs)$name)
@@ -94,8 +92,7 @@ SPM <- function(g, measure, outcome=measure,
   if (test == 'wilcox.test') {
     f.wil <- function(x, ...) {
       stats <- wilcox.test(x, ...)
-      stats$parameter <- NA
-      list(stats$statistic, stats$parameter, stats$p.value)
+      list(stats$statistic, NA, stats$p.value)
     }
 
     DT.tidy <- melt(meas.id.dt, id.vars=c('Study.ID', 'Group'),
@@ -109,7 +106,7 @@ SPM <- function(g, measure, outcome=measure,
   # Specify a linear model at every vertex
   #---------------------------------------------------------
     f <- function(x, y, z) {
-      est <- fastLmPure(x, y)
+      est <- fastLmPure(x, y, method=2)
       list(est$coef[z], est$se[z], est$df.resid)
     }
     calc_stats <- function(DT, covars) {
@@ -117,8 +114,8 @@ SPM <- function(g, measure, outcome=measure,
                       variable.name='region', value.name=measure)
       setkeyv(DT.tidy, key(DT))
       z <- which(names(DT) == 'Group')
-      covars.mat <- cbind(1, as.matrix(DT[, lapply(.SD, as.numeric), .SDcols=names(covars)[-1]]))
-      DT.tidy[, c('beta', 'se', 'df') := f(covars.mat, get(measure), z), by=region]
+      X <- cbind(1, as.matrix(DT[, lapply(.SD, as.numeric), .SDcols=names(covars)[-1]]))
+      DT.tidy[, c('beta', 'se', 'df') := f(X, get(measure), z), by=region]
       return(DT.tidy)
     }
 
@@ -136,22 +133,22 @@ SPM <- function(g, measure, outcome=measure,
       DT[, Group := NULL]
       setkey(DT, Study.ID)
       z <- which(names(DT) == outcome)
-      covars.mat <- cbind(1, as.matrix(DT[, lapply(.SD, as.numeric), .SDcols=names(covars)[-c(1, z)]]))
+      X <- cbind(1, as.matrix(DT[, lapply(.SD, as.numeric), .SDcols=names(covars)[-c(1, z)]]))
       DT.tidy <- melt(DT, id.vars=names(covars),
                       variable.name='region', value.name='measure')
       setkeyv(DT.tidy, key(DT))
-      DT.tidy[, c('beta', 'se', 'df') := f(cbind(covars.mat, measure), get(outcome), z), by=region]
+      DT.tidy[, c('beta', 'se', 'df') := f(cbind(X, measure), get(outcome), z), by=region]
     } else {
       DT.tidy <- calc_stats(DT, covars)
       V(g.diffs)$meas.diff <- DT.tidy[, mean(get(measure)), by=list(region, Group)][, -diff(V1), by=region]$V1
       if (isTRUE(permute)) {
-        tmax.observed <- DT.tidy[, max(beta / se)]
+        tmax.observed <- DT.tidy[, max(beta / se, na.rm=T)]
         perm.order <- shuffleSet(n=nrow(DT), nset=N)
         tmax.null.dist <- foreach (i=seq_len(N), .combine='c') %dopar% {
           DT.shuff <- DT[perm.order[i, ]]
           DT.shuff$Group <- DT$Group
           setkeyv(DT.shuff, key(DT))
-          calc_stats(DT.shuff, DT.shuff[, names(covars), with=F])[, max(beta / se)]
+          calc_stats(DT.shuff, DT.shuff[, names(covars), with=F])[, max(beta / se, na.rm=T)]
         }
         tmax.thresh <- sort(tmax.null.dist)[floor((1 - alpha) * N) + 1]
       }
@@ -160,9 +157,9 @@ SPM <- function(g, measure, outcome=measure,
     DT.tidy[, t := beta / se, by=region]
 
     if (alt == 'two.sided') {
-      V(g.diffs)$p <- 1 - DT.tidy[, unique(2 * (1 - pt(abs(t), df=df))), by=region]$V1
+      V(g.diffs)$p <- 1 - DT.tidy[, unique(2 * (pt(abs(t), df=df, lower.tail=F))), by=region]$V1
     } else if (alt == 'less') {
-      V(g.diffs)$p <- 1 - DT.tidy[, unique(1 - pt(t, df=df)), by=region]$V1
+      V(g.diffs)$p <- 1 - DT.tidy[, unique(pt(t, df=df, lower.tail=F)), by=region]$V1
     } else if (alt == 'greater') {
       V(g.diffs)$p <- 1 - DT.tidy[, unique(pt(t, df=df)), by=region]$V1
     }
@@ -175,9 +172,21 @@ SPM <- function(g, measure, outcome=measure,
   V(g.diffs)$p.fdr <- 1 - p.adjust(1 - V(g.diffs)$p, 'fdr')
   V(g.diffs)$size2 <- DT.tidy[, unique(t), by=region]$V1
   V(g.diffs)$size <- vec.transform(V(g.diffs)$size2, 0, 20)
+  excl <- which(V(g.diffs)$meas.diff == 0)
+  V(g.diffs)$p[excl] <- V(g.diffs)$p.fdr[excl] <- 0
   if (isTRUE(permute)) {
-    V(g.diffs)$p.perm <- 1 - vapply(V(g.diffs)$size2, function(x)
-                                    sum(tmax.null.dist >= x) / N, numeric(1))
+    if (alt == 'two.sided') {
+      p.perm <- vapply(V(g.diffs)$size2, function(x)
+                       (sum(abs(tmax.null.dist) >= abs(x), na.rm=T) + 1) / (N + 1), numeric(1))
+    } else if (alt == 'less') {
+      p.perm <- vapply(V(g.diffs)$size2, function(x)
+                       (sum(tmax.null.dist >= x, na.rm=T) + 1) / (N + 1), numeric(1))
+    } else if (alt == 'greater') {
+      p.perm <- vapply(V(g.diffs)$size2, function(x)
+                       (sum(tmax.null.dist >= (-1 * x), na.rm=T) + 1) / (N + 1), numeric(1))
+    }
+    V(g.diffs)$p.perm <- 1 - p.perm
+    V(g.diffs)$p.perm[excl] <- 0
   }
 
   return(list(g=g.diffs, perm=list(null.dist=tmax.null.dist, thresh=tmax.thresh)))

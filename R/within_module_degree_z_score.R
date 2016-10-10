@@ -13,6 +13,8 @@
 #'
 #' @param g The graph
 #' @param memb The community membership indices of each vertex
+#' @param use.parallel Logical indicating whether or not to use \emph{foreach}
+#'   (default: TRUE)
 #' @export
 #'
 #' @return A vector of the within-module degree z-scores for each vertex of the
@@ -23,11 +25,9 @@
 #' networks: modules and universal roles, Journal of Statistical Mechanics:
 #' Theory and Experiment, 02, P02001.
 
-within_module_deg_z_score <- function(g, memb) {
+within_module_deg_z_score <- function(g, memb, use.parallel=TRUE) {
   i <- NULL
-  if (!is.igraph(g)) {
-    stop(sprintf('%s is not a graph object', deparse(substitute(g))))
-  }
+  stopifnot(is_igraph(g))
   if ('degree' %in% vertex_attr_names(g)) {
     degs <- V(g)$degree
   } else {
@@ -37,9 +37,16 @@ within_module_deg_z_score <- function(g, memb) {
   es <- E(g)
   z <- Ki <- rep(0, length(degs))
 
-  Ki[vs] <- foreach(i=vs, .combine='c') %dopar% {
-    length(es[i %--% which(memb == memb[i])])
+  if (isTRUE(use.parallel)) {
+    Ki[vs] <- foreach(i=vs, .combine='c') %dopar% {
+      length(es[i %--% which(memb == memb[i])])
+    }
+  } else {
+    for (i in vs) {
+      Ki[i] <- length(es[i %--% which(memb == memb[i])])
+    }
   }
+
   di <- lapply(seq_len(max(memb)), function(x) Ki[memb == x])
   Ksi <- vapply(di, mean, numeric(1))
   sigKsi <- vapply(di, sd, numeric(1))

@@ -4,26 +4,29 @@
 #' a vertex and each column is a different network measure (degree, centrality,
 #' etc.).
 #'
-#' @param g An igraph graph object
-#' @param group A character string indicating group membership (default:NULL)
+#' @param g An \code{igraph} graph object
+#' @param group A character string indicating group membership (default: NULL)
 #' @export
 #'
-#' @return A data table with 18-19 columns and row number equal to the number of
-#' vertices in the graph
+#' @return A data table; each row is for a different vertex
 #' @seealso \code{\link[igraph]{vertex_attr}, \link[igraph]{vertex_attr_names},
 #' \link[igraph]{as_data_frame}}
 
 vertex_attr_dt <- function(g, group=NULL) {
-  lobe <- name <- Group <- NULL
+  lobe <- name <- Group <- network <- NULL
   atlas.dt <- eval(parse(text=g$atlas))
 
   net.meas <- setDT(as_data_frame(g, what='vertices'))
   net.meas[, c('x', 'y', 'z', 'x.mni', 'y.mni', 'z.mni', 'lobe.hemi',
-               'circle.layout', 'comm', 'comp', 'circle.layout.comm',
-               'color.comm', 'color.comp', 'color.lobe') := NULL]
-  if (g$atlas == 'destrieux') {
+               'circle.layout', 'comm', 'comm.wt', 'comp', 'circle.layout.comm',
+               'color.comm', 'color.comm.wt', 'color.comp', 'color.lobe') := NULL]
+  if (g$atlas %in% c('destrieux', 'destrieux.scgm')) {
     net.meas[, 'color.class' := NULL]
     net.meas$class <- atlas.dt[, levels(class)][V(g)$class]
+  }
+  if (g$atlas == 'dosenbach160') {
+    net.meas[, 'color.network' := NULL]
+    net.meas$network <- atlas.dt[, levels(network)][V(g)$network]
   }
   net.meas$density <- g$density
   net.meas$lobe <- atlas.dt[, levels(lobe)][V(g)$lobe]
@@ -35,6 +38,7 @@ vertex_attr_dt <- function(g, group=NULL) {
 
   if ('name' %in% graph_attr_names(g)) net.meas$Study.ID <- g$name
   if ('modality' %in% graph_attr_names(g)) net.meas$modality <- g$modality
+  if ('atlas' %in% graph_attr_names(g)) net.meas$atlas <- g$atlas
   if (is.null(group)) {
     if ('Group' %in% graph_attr_names(g)) {
       net.meas$Group <- g$Group
