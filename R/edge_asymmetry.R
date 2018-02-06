@@ -1,20 +1,21 @@
 #' Calculate an asymmetry index based on edge counts
 #'
-#' This function will calculate an asymmetry index that is a measure of whether
-#' or not more edges are present in the left or right hemisphere of a graph for
-#' brain MRI data. You can choose a value for each vertex, or for the whole
-#' hemisphere.
+#' Calculate an \emph{asymmetry index}, a ratio of intra-hemispheric edges in
+#' the left to right hemisphere of a graph for brain MRI data.
 #'
 #' The equation is:
-#'\deqn{A = \frac{E_{lh} - E_{rh}}{0.5 \times (E_{lh} + E_{rh})}}
+#' \deqn{A = \frac{E_{lh} - E_{rh}}{0.5 \times (E_{lh} + E_{rh})}}
 #' where \emph{lh} and \emph{rh} are left and right hemispheres, respectively.
 #' The range of this measure is \eqn{[-2, 2]} (although the limits will only be
 #' reached if all edges are in one hemisphere), with negative numbers
 #' indicating more edges in the right hemisphere, and a value of 0 indicating
 #' equal number of edges in each hemisphere.
 #'
+#' The \code{level} argument specifies whether to calculate asymmetry for each
+#' vertex, or for the whole hemisphere.
+#'
 #' @param g An \code{igraph} graph object
-#' @param level A character string indicating whether to calculate asymmetry for
+#' @param level Character string indicating whether to calculate asymmetry for
 #'   each region, or the hemisphere as a whole (default: \code{'hemi'})
 #' @export
 #'
@@ -37,9 +38,17 @@ edge_asymmetry <- function(g, level=c('hemi', 'vertex')) {
     asymm <- data.table(region='all', lh=lh, rh=rh)
 
   } else if (level == 'vertex') {
-    lh <- rowSums(A[, L])
-    rh <- rowSums(A[, R])
-    asymm <- data.table(lh=lh, rh=rh, region=V(g)$name)
+    if (length(L) == 1) {
+      lh <- A[, L]
+    } else {
+      lh <- rowSums(A[, L])
+    }
+    if (length(R) == 1) {
+      rh <- A[, R]
+    } else {
+      rh <- rowSums(A[, R])
+    }
+    asymm <- data.table(region=V(g)$name, lh=lh, rh=rh)
   }
   asymm[, asymm := 2 * (lh - rh) / (lh + rh)]
   return(asymm)

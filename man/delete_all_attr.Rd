@@ -17,7 +17,7 @@ An \code{igraph} graph object
 }
 \description{
 Deletes all graph-, vertex-, and edge-level attributes of an \code{igraph}
-graph objects.
+graph object.
 }
 \seealso{
 \code{\link[igraph]{delete_graph_attr},
@@ -26,3 +26,4 @@ graph objects.
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}
 }
+\keyword{internal}

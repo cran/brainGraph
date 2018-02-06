@@ -2,13 +2,9 @@
 % Please edit documentation in R/graph_efficiency.R
 \name{efficiency}
 \alias{efficiency}
-\alias{graph.efficiency}
 \title{Calculate graph global, local, or nodal efficiency}
 \usage{
 efficiency(g, type = c("local", "nodal", "global"), weights = NULL,
-  use.parallel = TRUE, A = NULL)
-
-graph.efficiency(g, type = c("local", "nodal", "global"), weights = NULL,
   use.parallel = TRUE, A = NULL)
 }
 \arguments{
@@ -28,21 +24,15 @@ To avoid using weights, this should be \code{NA}.}
 input graph (default: \code{NULL})}
 }
 \value{
-A numeric vector of the local efficiencies for each vertex of the
-  graph (if \emph{type} is \code{local|nodal}) or a single number (if
-  \emph{type} is \code{global}).
+A numeric vector of the efficiencies for each vertex of the graph
+  (if \emph{type} is \code{local|nodal}) or a single number (if \emph{type}
+  is \code{global}).
 }
 \description{
 This function calculates the global efficiency of a graph or the local or
-nodal efficiency of each vertex of a graph. The global efficiency is equal
-to the mean of all nodal efficiencies.
+nodal efficiency of each vertex of a graph.
 }
 \details{
-Global efficiency for graph \emph{G} with \emph{N} vertices is:
-\deqn{E_{global}(G) = \frac{1}{N(N-1)} \sum_{i \ne j \in G} \frac{1}{d_{ij}}}
-where \eqn{d_{ij}} is the shortest path length between vertices \emph{i} and
-\emph{j}.
-
 Local efficiency for vertex \emph{i} is:
 \deqn{E_{local}(i) = \frac{1}{N} \sum_{i \in G} E_{global}(G_i)}
 where \eqn{G_i} is the subgraph of neighbors of \emph{i}, and \emph{N} is the
@@ -50,10 +40,19 @@ number of vertices in that subgraph.
 
 Nodal efficiency for vertex \emph{i} is:
 \deqn{E_{nodal}(i) = \frac{1}{N-1} \sum_{j \in G} \frac{1}{d_{ij}}}
+
+Global efficiency for graph \emph{G} with \emph{N} vertices is:
+\deqn{E_{global}(G) = \frac{1}{N(N-1)} \sum_{i \ne j \in G} \frac{1}{d_{ij}}}
+where \eqn{d_{ij}} is the shortest path length between vertices \emph{i} and
+\emph{j}. Alternatively, global efficiency is equal to the mean of all nodal
+efficiencies.
 }
 \references{
 Latora V., Marchiori M. (2001) \emph{Efficient behavior of
-small-world networks}. Phys Rev Lett, 87.19:198701.
+  small-world networks}. Phys Rev Lett, 87.19:198701.
+
+Latora V., Marchiori M. (2003) \emph{Economic small-world
+  behavior in weighted networks}. Eur Phys J B, 32:249-263.
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}

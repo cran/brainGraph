@@ -1,74 +1,75 @@
 #' Initialize variables for further use in brainGraph
 #'
-#' This function initializes some variables that are important for further
-#' analysis with the \code{brainGraph} package. This mostly involves loading CSV
-#' files (of covariates/demographics, cortical thickness/volumes, etc.) and
-#' returning them as data tables.
+#' Initializes some variables that are important for further analysis of
+#' structural covariance networks (e.g., \emph{cortical thickness}). This mostly
+#' involves loading CSV files (of covariates/demographics, cortical
+#' thickness/volumes, etc.) and returning them as data tables.
+#'
+#' You can use any atlas that is already present in the package; to check the
+#' available atlases, you can type
+#' \code{data(package="brainGraph")$results[, 3]} at the R prompt. If you have a
+#' custom atlas, specify \code{atlas="custom"} and supply the R object's name
+#' for the argument \code{custom.atlas}.
 #'
 #' The file containing covariates should be named \code{covars.csv}. However,
 #' you may also supply a \code{data.table} using the function argument
 #' \code{covars}. This is useful if you have multiple covariates in your file
 #' and wish to subset the data on your own.
 #'
-#' The files containing volumetric data should include hemisphere, atlas, and
-#' modality, e.g. \code{lh_dkt_thickness.csv}. If you would like to include
-#' subcortical gray matter, then you will need files \code{covars.scgm.csv} and
-#' \code{scgm.csv}.
+#' The filenames of files containing volumetric data should include hemisphere,
+#' atlas, and modality separated by the \emph{underscore} character, e.g.
+#' \code{lh_dkt_thickness.csv}. If you would like to include subcortical gray
+#' matter, then you will need files \code{covars.scgm.csv} and \code{scgm.csv}.
 #'
-#' @param atlas A character string indicating which brain atlas you are using
-#' @param densities A numeric vector of the graph densities you would like to
-#' investigate
-#' @param datadir A character string; the filesystem location of your input
-#' files
-#' @param modality A character string indicating the volumetric MRI
-#' modality/measure you are using to create the graphs ('thickness', 'volume',
-#' 'lgi', or 'area')
-#' @param use.mean A logical indicating whether or not you would like to
-#' calculate the mean hemispheric volumetric measure (for later use in linear
-#' models) (default: FALSE)
-#' @param covars (optional) A \code{data.table} of covariates; specify this if
-#'   you do not want to load your full covariates file (default: NULL)
-#' @param exclude.subs (optional) A character vector of the Study ID's of
-#' subjects who are to be excluded from the analysis
+#' @param atlas Character string indicating which brain atlas you are using.
+#'   This can be an atlas present with the package or a custom atlas; in this
+#'   case you must specify \code{custom} here and assign the name to the
+#'   argument \code{custom.atlas}.
+#' @param densities Numeric vector of the graph densities you would like to
+#'   investigate
+#' @param datadir Character string; the filesystem location of your input files
+#' @param modality Character string indicating the volumetric MRI
+#'   modality/measure used to create the graphs (default: \code{thickness})
+#' @param covars A \code{data.table} of covariates; specify this if you do not
+#'   want to load your full covariates file (default: \code{NULL})
+#' @param exclude.subs Character vector of the Study ID's of subjects who are to
+#'   be excluded from the analysis (default: \code{NULL})
+#' @param custom.atlas Character string of the name of the custom atlas you wish
+#'   to use, if applicable (default: \code{NULL})
 #' @export
 #'
 #' @return A list containing:
-#' \item{atlas}{A character string of the brain atlas name}
-#' \item{densities}{A numeric vector of the graph densities}
-#' \item{modality}{A character string of the modality you chose}
-#' \item{kNumDensities}{An integer indicating the number of densities}
-#' \item{covars}{A \code{data.table} of covariates}
-#' \item{groups}{A character vector of subject group names}
-#' \item{kNumGroups}{An integer indicating the number of groups}
-#' \item{kNumVertices}{An integer; the number of vertices in the graphs}
-#' \item{lhrh}{A \code{data.table} of left- and right-hemispheric volumetric
-#' data}
-#' \item{all.dat}{A merged \code{data.table} of \code{covars} and \code{lhrh}}
-#' \item{all.dat.tidy}{A 'tidied' version of \code{all.dat}}
+#'   \item{atlas}{Character string of the brain atlas name}
+#'   \item{densities}{Numeric vector of the graph densities}
+#'   \item{modality}{Character string of the modality you chose}
+#'   \item{kNumDensities}{Integer indicating the number of densities}
+#'   \item{covars}{A \code{data.table} of covariates}
+#'   \item{groups}{Character vector of subject group names}
+#'   \item{kNumGroups}{Integer indicating the number of groups}
+#'   \item{kNumVertices}{Integer; the number of vertices in the graphs}
+#'   \item{lhrh}{A \code{data.table} of left- and right-hemispheric volumetric
+#'     data}
 #'
+#' @family Structural covariance network functions
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 #' @examples
 #' \dontrun{
 #' init.vars <- brainGraph_init(atlas='dkt', densities=seq(0.07, 0.50, 0.01),
-#' datadir='/home/cwatson/Data', modality='thickness', exclude.subs=c('Con07',
-#' 'Con23', 'Pat15'), use.mean=FALSE)
+#'   datadir='/home/cwatson/Data', modality='thickness', exclude.subs=c('Con07',
+#'   'Con23', 'Pat15'))
 #' }
 
-brainGraph_init <- function(atlas=c('aal116', 'aal2.120', 'aal2.94', 'aal90',
-                                    'brainsuite', 'craddock200', 'destrieux',
-                                    'destrieux.scgm', 'dk', 'dk.scgm', 'dkt',
-                                    'dkt.scgm', 'dosenbach160', 'hoa112',
-                                    'lpba40'),
-                            densities, datadir,
+brainGraph_init <- function(atlas, densities, datadir,
                             modality=c('thickness', 'volume', 'lgi', 'area'),
-                            use.mean=FALSE, covars=NULL, exclude.subs=NULL) {
+                            covars=NULL, exclude.subs=NULL, custom.atlas=NULL) {
+  Group <- Study.ID <- region <- NULL
 
-  Group <- Study.ID <- hemi <- name <- mean.lh <- mean.rh <- group.mean <-
-    value <- region <- NULL
   kNumDensities <- length(densities)
-  atlas <- match.arg(atlas)
-  atlas.dt <- eval(parse(text=atlas))
-  kNumVertices <- nrow(atlas.dt)
+  atlas <- match.arg(atlas, choices=c(data(package='brainGraph')$results[, 3], 'custom'))
+  if (atlas == 'custom') {
+    stopifnot(!is.null(custom.atlas), exists(custom.atlas))
+    atlas <- custom.atlas
+  }
 
   if (is.null(covars)) {
     stopifnot(file.exists(paste0(datadir, '/covars.csv')))
@@ -87,6 +88,7 @@ brainGraph_init <- function(atlas=c('aal116', 'aal2.120', 'aal2.94', 'aal90',
   rh <- fread(paste0(datadir, '/rh_', atlas, '_', modality, '.csv'))
   setkey(rh, Study.ID)
   lhrh <- merge(lh, rh)
+  kNumVertices <- ncol(lhrh) - 1
 
   # Remove subjects that are to be excluded
   if (!is.null(exclude.subs)) {
@@ -94,23 +96,15 @@ brainGraph_init <- function(atlas=c('aal116', 'aal2.120', 'aal2.94', 'aal90',
     lhrh <- lhrh[!Study.ID %in% exclude.subs]
   }
 
-  # Calculate hemispheric means, if desired
-  all.dat <- merge(covars, lhrh)
-  if (isTRUE(use.mean)) {
-    all.dat[, mean.lh := rowMeans(.SD),
-            .SDcols=atlas.dt[hemi == 'L', name],
-            by=Study.ID]$V1
-    all.dat[, mean.rh := rowMeans(.SD),
-            .SDcols=atlas.dt[hemi == 'R', name],
-            by=Study.ID]$V1
-    covars <- subset(all.dat, select=c(names(covars), 'mean.lh', 'mean.rh'))
-  }
+  res <- list(atlas=atlas, densities=densities, modality=modality,
+              kNumDensities=kNumDensities, covars=covars, groups=groups,
+              kNumGroups=kNumGroups, kNumVertices=kNumVertices, lhrh=lhrh)
 
   # Get SCGM and its covariates, if included
   if (isTRUE(grepl('scgm', atlas))) {
     scgm <- fread(paste0(datadir, '/scgm.csv'))
     setkey(scgm, Study.ID)
-    if (is.null(covars)) {
+    if (is.null(covars)) { #FIXME: this branch will never be selected
       covars.scgm <- fread(paste0(datadir, '/covars.scgm.csv'))
     } else {
       covars.scgm <- fread(paste0(datadir, '/covars.csv'))
@@ -123,28 +117,7 @@ brainGraph_init <- function(atlas=c('aal116', 'aal2.120', 'aal2.94', 'aal90',
       covars.scgm <- covars.scgm[!Study.ID %in% exclude.subs]
       scgm <- scgm[!Study.ID %in% exclude.subs]
     }
-
-    all.dat.scgm <- merge(covars.scgm, scgm)
-    all.dat.scgm.tidy <- melt(all.dat.scgm, id.vars=names(covars.scgm),
-                              variable.name='region')
-    all.dat.scgm.tidy[, modality := modality]
-    all.dat.scgm.tidy[, group.mean := mean(value), by=list(Group, region)]
-    setkey(all.dat.scgm.tidy, Group, region)
-  }
-
-  all.dat.tidy <- melt(all.dat, id.vars=names(covars), variable.name='region')
-  all.dat.tidy[, modality := modality]
-  all.dat.tidy[, group.mean := mean(value), by=list(Group, region)]
-  setkey(all.dat.tidy, Group, region)
-
-  res <- list(atlas=atlas, densities=densities, modality=modality,
-              kNumDensities=kNumDensities, covars=covars, groups=groups,
-              kNumGroups=kNumGroups, kNumVertices=kNumVertices, lhrh=lhrh,
-              all.dat=all.dat, all.dat.tidy=all.dat.tidy)
-  if (isTRUE(grepl('scgm', atlas))) {
-    res <- c(res, list(covars.scgm=covars.scgm, scgm=scgm,
-                       all.dat.scgm=all.dat.scgm,
-                       all.dat.scgm.tidy=all.dat.scgm.tidy))
+    res <- c(res, list(covars.scgm=covars.scgm, scgm=scgm))
   }
   return(res)
 }

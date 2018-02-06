@@ -16,34 +16,29 @@
 #' @param modality A character string indicating the type of volumetric measure
 #' ('thickness', 'volume', 'lgi', or 'area')
 #' @export
+#' @importFrom scales fullseq
 #'
 #' @return A ggplot object
+#' @family Structural covariance network functions
 #' @seealso \code{\link[ggplot2]{geom_histogram}, \link[ggplot2]{geom_vline}}
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
-plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
-                             all.vals=TRUE,
-                             modality=c('thickness', 'volume', 'lgi', 'area')) {
+plot_volumetric <- function(dat, regions, type=c('violin', 'histogram'),
+                            all.vals=TRUE,
+                            modality=c('thickness', 'volume', 'lgi', 'area')) {
   region <- value <- Group <- ..density.. <- avg <- group.mean <- bwidth <-
     breaks <- x <- width <- NULL
-  if (!is.character(regions)) {
-    regions <- dat[, unique(region)][regions]
-  } else {
-    stopifnot(all(regions %in% dat[, levels(region)]))
-  }
-  subDT <- dat[region %in% regions]
+  if (!is.character(regions)) regions <- dat[, levels(region)][regions]
+  stopifnot(all(regions %in% dat[, levels(region)]))
 
   modality <- match.arg(modality)
-  if (modality == 'thickness') {
-    ax.lab <- 'Thickness (mm)'
-  } else if (modality == 'volume') {
-    ax.lab <- expression(paste('Volume (', mm^{3}, ')'))
-  } else if (modality == 'lgi') {
-    ax.lab <- 'Local Gyrification Index'
-  } else if (modality == 'area') {
-    ax.lab <- expression(paste('Surface area (', mm^{2}, ')'))
-  }
+  ax.lab <- switch(modality,
+                   thickness='Thickness (mm)',
+                   volume=expression(paste('Volume (', mm^{3}, ')')),
+                   lgi='Local Gyrification Index',
+                   area=expression(paste('Surface area (', mm^{2}, ')')))
 
+  subDT <- dat[region %in% regions]
   type <- match.arg(type)
   if (type == 'histogram') {
     # Allow for variable bin widths
@@ -52,7 +47,7 @@ plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
     breaksdt <- subDT[, list(breaks=pretty(range(value), n=nclass.FD(value))),
                       by=list(Group, region)]
     breaksdt[, bwidth := .SD[1:2, diff(breaks)], by=list(Group, region)]
-    subDT[, bwidth := rep(breaksdt[, .SD[, min(bwidth)], by=region]$V1,
+    subDT[, bwidth := rep(breaksdt[, min(bwidth), by=region]$V1,
                           times=subDT[, .N, by=region]$N)]
     # A partial recreation of Hadley's ggplot2:::bin function
     create_bins <- function(x, binwidth) {
@@ -64,13 +59,13 @@ plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
       width <- diff(breaks)
 
       out <- data.frame(count=as.numeric(tapply(rep(1, length(bins)), bins, sum,
-                                                na.rm=T)),
+                                                na.rm=TRUE)),
                         x=x,
                         width=width)
       out$count[is.na(out$count)] <- 0
-      out$density <- out$count / out$width / sum(abs(out$count), na.rm=T)
-      out$ndensity <- out$density / max(abs(out$density), na.rm=T)
-      out$ncount <- out$count / max(abs(out$count), na.rm=T)
+      out$density <- out$count / out$width / sum(abs(out$count), na.rm=TRUE)
+      out$ndensity <- out$density / max(abs(out$density), na.rm=TRUE)
+      out$ncount <- out$count / max(abs(out$count), na.rm=TRUE)
       return(out)
     }
     my.df <- subDT[, create_bins(value, unique(bwidth)), by=list(Group, region)]
@@ -93,6 +88,7 @@ plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
       theme(legend.position='none') +
       ylab(ax.lab)
     if (isTRUE(all.vals)) {
+      subDT[, group.mean := mean(value), by=list(Group, region)]
       vol.plot <- vol.plot +
         geom_segment(aes(x=as.numeric(Group)-0.1, xend=as.numeric(Group)+0.1,
                          y=value, yend=value), col='black') +
@@ -103,4 +99,14 @@ plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
     }
   }
   return(vol.plot)
+}
+
+#' @inheritParams plot_volumetric
+#' @export
+#' @rdname plot_volumetric
+plot_group_means <- function(dat, regions, type=c('violin', 'histogram'),
+                             all.vals=TRUE,
+                             modality=c('thickness', 'volume', 'lgi', 'area')) {
+  .Deprecated('plot_volumetric')
+  plot_volumetric(dat, regions, type, all.vals, modality)
 }
