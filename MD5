@@ -1,6 +1,6 @@
-185da3a77fb3c099c84e9182d9b5f916 *DESCRIPTION
+ae3eef687c1f19492329beebe28841bf *DESCRIPTION
 8a712310c350d67f7611f7d1346753f2 *NAMESPACE
-89bb2dc94c33ce22e4c8a8e53ed60006 *NEWS.md
+4321f668c297d630d3cb7942311414be *NEWS.md
 e4b537acb9fd20597848c518a17598d3 *R/NBS.R
 9df38f080b086f08f939dbe00438a0a1 *R/analysis_random_graphs.R
 7e677abf8c1e1fad8b60d120785ce819 *R/boot_global.R
@@ -13,13 +13,13 @@ e0be0fd1e5e4bd52a81fd81283c0aac2 *R/brainGraph_mediate.R
 ff7ff0a87621ac26675979b03952cad7 *R/corr_matrix.R
 3efd797a08c93b72ccbcdba01ede9a5f *R/count_edges.R
 eccc4ebd8a1008967018a5a26896ec69 *R/create_graphs.R
-01c5c7240038527720604f7ca57c2aec *R/create_mats.R
+06b05d8874c550a1e23636417b8bb1d0 *R/create_mats.R
 dbcd53cd9a11a7a79e3d49eb786604c4 *R/data_tables.R
 378bb72fc439006459f6713c40958035 *R/edge_asymmetry.R
 4183b219f4b4a9c3c249b802af978ae1 *R/get_resid.R
 b1cdc9e756a90e462b3c1db74e16556a *R/graph_efficiency.R
 4b5dea5578da249106740c9fa9bb6f20 *R/individ_contrib.R
-bcd929e7c5d72fd8912d6f1c416b2703 *R/mtpc.R
+b0f2bd99831033676b67fb43749e727b *R/mtpc.R
 fe1efd4e251dae793062c03c09d36479 *R/permute_group.R
 14edeb098bff89e5760d6c47d892bd9b *R/plot_brainGraph.R
 085e99d13e72b526943ed981ff9c510c *R/plot_brainGraph_gui.R
