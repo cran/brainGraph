@@ -2,12 +2,23 @@
 % Please edit documentation in R/permute_group.R
 \name{brainGraph_permute}
 \alias{brainGraph_permute}
+\alias{summary.brainGraph_permute}
+\alias{plot.brainGraph_permute}
 \title{Permutation test for group difference of graph measures}
 \usage{
-brainGraph_permute(densities, resids, N = 5000, perms = NULL, auc = FALSE,
-  level = c("graph", "vertex", "other"), measure = c("btwn.cent", "degree",
-  "E.nodal", "ev.cent", "knn", "transitivity", "vulnerability"), atlas = NULL,
+brainGraph_permute(densities, resids, N = 5000, perms = NULL,
+  auc = FALSE, level = c("graph", "vertex", "other"),
+  measure = c("btwn.cent", "degree", "E.nodal", "ev.cent", "knn",
+  "transitivity", "vulnerability"), atlas = resids$atlas,
   .function = NULL)
+
+\method{summary}{brainGraph_permute}(object, measure = NULL,
+  alternative = c("two.sided", "less", "greater"), alpha = 0.05,
+  p.sig = c("p", "p.fdr"), ...)
+
+\method{plot}{brainGraph_permute}(x, measure = NULL,
+  alternative = c("two.sided", "less", "greater"), alpha = 0.05,
+  p.sig = c("p", "p.fdr"), ptitle = NULL, ...)
 }
 \arguments{
 \item{densities}{Numeric vector of graph densities}
@@ -23,23 +34,43 @@ your own (default: \code{NULL})}
 \item{auc}{Logical indicating whether or not to calculate differences in the
 area-under-the-curve of metrics (default: \code{FALSE})}
 
-\item{level}{A character string for the attribute "level" to calculate
+\item{level}{A character string for the attribute \dQuote{level} to calculate
 differences (default: \code{graph})}
 
 \item{measure}{A character string specifying the vertex-level metric to
-calculate, only used if \code{level='vertex'} (default: \code{btwn.cent})}
+calculate, only used if \code{level='vertex'} (default: \code{btwn.cent}).
+For the \code{summary} method, this is to focus on a single
+\emph{graph-level} measure (since multiple are calculated at once).}
 
 \item{atlas}{Character string of the atlas name; required if
-\code{level='graph'} (default: \code{NULL})}
+\code{level='graph'}}
 
 \item{.function}{A custom function you can pass if \code{level='other'}}
+
+\item{object, x}{A \code{brainGraph_permute} object (output by
+\code{\link{brainGraph_permute}}).}
+
+\item{alternative}{Character string, whether to do a two- or one-sided test.
+Default: \code{'two.sided'}}
+
+\item{alpha}{Numeric; the significance level. Default: 0.05}
+
+\item{p.sig}{Character string specifying which p-value to use for displaying
+significant results (default: \code{p})}
+
+\item{...}{Unused}
+
+\item{ptitle}{Character string specifying a title for the plot (default:
+\code{NULL})}
 }
 \value{
 An object of class \code{brainGraph_permute} with input arguments in
   addition to:
   \item{DT}{A data table with permutation statistics}
   \item{obs.diff}{A data table of the observed group differences}
-  \item{groups}{Group names}
+  \item{Group}{Group names}
+
+The \code{plot} method returns a \emph{list} of \code{ggplot} objects
 }
 \description{
 \code{brainGraph_permute} draws permutations from linear model residuals to
@@ -52,7 +83,7 @@ types of data.
 If you would like to calculate differences in the area-under-the-curve (AUC)
 across densities, then specify \code{auc=TRUE}.
 
-There are three possible "levels":
+There are three possible \dQuote{levels}:
 \enumerate{
   \item \emph{graph} Calculate modularity (Louvain algorithm), clustering
   coefficient, characteristic path length, degree assortativity, global
@@ -76,18 +107,17 @@ out <- brainGraph_permute(densities, m, perms=myPerms,
 }
 }
 \seealso{
-Other Group analysis functions: \code{\link{IndividualContributions}},
-  \code{\link{NBS}}, \code{\link{brainGraph_GLM}},
-  \code{\link{brainGraph_boot}},
-  \code{\link{brainGraph_mediate}}, \code{\link{mtpc}}
+Other Group analysis functions: \code{\link{Bootstrapping}},
+  \code{\link{GLM}}, \code{\link{Mediation}},
+  \code{\link{NBS}}, \code{\link{mtpc}}
 
-Other Structural covariance network functions: \code{\link{IndividualContributions}},
-  \code{\link{brainGraph_boot}},
-  \code{\link{brainGraph_init}}, \code{\link{corr.matrix}},
-  \code{\link{get.resid}},
-  \code{\link{plot.brainGraph_resids}},
-  \code{\link{plot_volumetric}}
+Other Structural covariance network functions: \code{\link{Bootstrapping}},
+  \code{\link{IndividualContributions}},
+  \code{\link{Residuals}}, \code{\link{corr.matrix}},
+  \code{\link{import_scn}}, \code{\link{plot_volumetric}}
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}
 }
+\concept{Group analysis functions}
+\concept{Structural covariance network functions}

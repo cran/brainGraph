@@ -1,0 +1,192 @@
+# Get info from brainGraph and brainGraphList objects
+#-------------------------------------------------------------------------------
+print_bg_summary <- function(object) {
+  name <- name_str <- dens.pct <- Group <- modality <- weighting <- thresh <- clustmethod <- 'N/A'
+
+  ver <- vapply(object$version, as.character, character(1))
+  date_created <- sub('T', ' ', object$date)
+  type <- simpleCap(object$type)
+  atlasfull <-
+    switch(object$atlas,
+           aal116='AAL-116', aal2.120=,aal2.94='AAL2', aal90='AAL-90',
+           brainsuite='Brainsuite', craddock200='Craddock-200',
+           destrieux='Destrieux', destrieux.scgm='Destrieux + SCGM',
+           dk='Desikan-Killiany', dk.scgm='Desikan-Killiany + SCGM',
+           dkt='Desikan-Killiany-Tourville', dkt.scgm='Desikan-Killiany-Tourville + SCGM',
+           dosenbach160='Dosenbach-160', hoa112='Harvard-Oxford cortical and subcortical',
+           lpba40='LONI probabilistic brain atlas', object$atlas)
+  if (!is.null(object$modality)) {
+    modality <-
+      switch(object$modality, dti='DTI', fmri='fMRI', thickness='Cortical thickness',
+             area='Cortical surface area', volume='Cortical/subcortical volume', object$modality)
+  }
+  if (!is.null(object$weighting)) {
+    weighting <-
+        switch(object$weighting, fa='FA (fractional anisotropy)',
+               sld='Streamline density', pearson='Pearson correlation',
+               spearman='Spearman\'s rank correlation',
+               kendall='Kendall\'s rank correlation', partial='Partial correlation',
+               object$weighting)
+  }
+  thresh_str <- 'Threshold:'
+  if (!is.null(object$threshold)) {
+    thresh <- prettyNum(object$threshold, ',', digits=4L)
+    if (length(thresh) > 1L) {
+      thresh_str <- sub(':', 's:', thresh_str)
+      if (length(thresh) > 6L) thresh <- thresh[1:6]
+      thresh <- paste(thresh, collapse='; ')
+    }
+  }
+  if (!is.null(object$clust.method)) {
+    clustmethod <-
+      switch(object$clust.method, edge_betweenness='Edge betweenness',
+             fast_greedy='Greedy optimization (hierarchical agglomeration)',
+             infomap='Infomap', label_prop='Label propagation',
+             leading_eigen='Leading eigenvector',
+             louvain='Louvain (multi-level modularity optimization)', optimal='Optimal',
+             spinglass='Potts spin glass model', walktrap='Walktrap algorithm',
+             object$clust.method)
+  }
+  if (is.brainGraph(object)) {
+    if (!is_weighted(object)) weighting <- 'Unweighted'
+  } else if (inherits(object, 'brainGraphList')) {
+    if (!is_weighted(object$graphs[[1]])) weighting <- 'Unweighted'
+  }
+  # Only for 'brainGraph' objects
+  if (inherits(object, 'brainGraph')) {
+    dens.pct <- sprintf('%1.2f%s', 100 * graph.density(object), '%')
+    if (!is.null(object$name)) name <- object$name
+    if (!is.null(object$Group)) Group <- object$Group
+    name_str <- switch(object$level,
+                       group='Group:',
+                       contrast='Contrast:',
+                       'Subject ID:')
+  }
+
+  df <- data.frame(
+          A=c('Software versions',
+              '       R release:', '      brainGraph:', '          igraph:',
+              'Date created:', 'Observed or random?', 'Brain atlas used:',
+              'Imaging modality:', 'Edge weighting:', 'Clustering method:',
+              'Graph density:', thresh_str, name_str, 'Group:'),
+          B=c('', ver, date_created, type, atlasfull, modality, weighting,
+              clustmethod, dens.pct, thresh, name, Group))
+  dimnames(df)[[2]] <- rep('', 2)
+  return(df)
+}
+
+# Print a character vector "x" as a data.frame with "nc" columns
+#-------------------------------------------------------------------------------
+print_text_vector <- function(x, nc) {
+  div <- length(x) %/% nc
+  splits <- split(x, ceiling(seq_along(x) / div))
+  lens <- lengths(splits)
+  nsplits <- length(splits)
+  splits[[nsplits]] <- c(splits[[nsplits]], rep('', div - lens[nsplits]))
+  attrs.df <- as.data.frame(splits, stringsAsFactors=FALSE)
+  dimnames(attrs.df)[[2]] <- rep('', nsplits)
+  return(attrs.df)
+}
+
+# Print a simple title
+#-------------------------------------------------------------------------------
+print_title_summary <- function(title) {
+  title <- paste(title)
+  width <- max(getOption('width') / 2, nchar(title))
+  message('\n', rep('=', width))
+  message(title)
+  message(rep('=', width))
+}
+
+# Print info about the outcome and/or graph measure of interest
+#-------------------------------------------------------------------------------
+print_measure_summary <- function(x) {
+  if (x$outcome == x$measure) {
+    cat('Graph metric of interest (outcome): ', x$outcome, '\n\n')
+  } else {
+    cat('Graph metric of interest (covariate): ', x$measure, '\n')
+    cat('Outcome measure: ', x$outcome, '\n\n')
+  }
+  invisible(x)
+}
+
+# Print details about the contrast matrix
+#-------------------------------------------------------------------------------
+print_contrast_type_summary <- function(x) {
+  cat('Contrast type: ', paste(toupper(x$con.type), 'contrast'), '\n')
+  alt <- switch(x$alt,
+                two.sided='C != 0',
+                greater='C > 0',
+                less='C < 0')
+  cat('Alternative hypothesis: ', alt, '\n')
+  cat('Contrasts: ', '\n')
+
+  con <- x$contrasts
+  if (is.matrix(con)) con <- list(con)
+  for (i in seq_along(con)) {
+    con[[i]] <- as.character(MASS::fractions(con[[i]]))
+    con[[i]] <- sub('^0$', '.', con[[i]])
+    if (is.list(x$contrasts)) message(x$con.name[i])
+    print(format(con[[i]], justify='right'), quote=FALSE)
+    cat('\n')
+  }
+
+  invisible(x)
+}
+
+# Print the subjects removed due to incomplete data
+#-------------------------------------------------------------------------------
+print_subs_summary <- function(x) {
+  n <- length(x$removed.subs)
+  if (n > 0) {
+    message(n, ' subjects removed due to incomplete data:')
+    cat('  ', paste(x$removed.subs, collapse=', '), '\n')
+  }
+  invisible(x)
+}
+
+# Print per-contrast statistics
+#-------------------------------------------------------------------------------
+print_contrast_stats_summary <- function(x) {
+  contrast <- NULL
+  printCon <- if (is.null(x$printCon)) x$DT[, unique(contrast)] else x$printCon
+
+  DT <- x$DT.sum[, !c('Contrast', 'Outcome')]
+  oldnames <- grep('p-value', names(x$DT.sum), value=TRUE)
+  newname <- if (x$con.type == 'f') 'Pr(>F)' else 'Pr(>|t|)'
+  newnames <- sub('p-value', newname, oldnames)
+  setnames(DT, oldnames, newnames)
+  for (i in printCon) {
+    message('Contrast ', i, ': ', x$con.name[i])
+    if (nrow(DT[contrast == i]) == 0) {
+      message('\tNo signficant results!\n')
+    } else {
+      if (isTRUE(x$print.head)) {
+        print(DT[contrast == i, !'contrast'], topn=5, nrows=10, digits=x$digits)
+      } else {
+        print(DT[contrast == i, !'contrast'], digits=x$digits)
+      }
+      cat('\n')
+    }
+  }
+  invisible(x)
+}
+
+# Print details regarding permutation analyses
+#-------------------------------------------------------------------------------
+print_permutation_summary <- function(x) {
+  message('\n', 'Permutation analysis', '\n', rep('-', getOption('width') / 4))
+  perm.method <- switch(x$perm.method,
+                        freedmanLane='Freedman-Lane',
+                        terBraak='ter Braak',
+                        smith='Smith')
+  part.method <- switch(x$part.method,
+                        beckmann='Beckmann',
+                        guttman='Guttman',
+                        ridgway='Ridgway')
+  cat('Permutation method: ', perm.method, '\n')
+  cat('Partition method: ', part.method, '\n')
+  cat('# of permutations: ', prettyNum(x$N, ','), '\n')
+
+  invisible(x)
+}

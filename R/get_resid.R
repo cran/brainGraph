@@ -1,53 +1,65 @@
 #' Linear model residuals in structural covariance networks
 #'
-#' Runs linear models across brain regions listed in a \code{data.table} (e.g.
-#' cortical thickness), adjusting for variables in \code{covars} (e.g. age, sex,
-#' etc.), and calculates the \emph{externally Studentized} (or
-#' \emph{leave-one-out}) residuals.
+#' \code{get.resid} runs linear models across brain regions listed in a
+#' \code{data.table} (e.g., cortical thickness), adjusting for variables in
+#' \code{covars} (e.g. age, sex, etc.), and calculates the
+#' \emph{externally Studentized} (or \emph{leave-one-out}) residuals.
 #'
 #' You can choose to run models for each of your subject groups separately or
 #' combined (the default) via the \code{method} argument. You may also choose
 #' whether or not to include the mean, per-hemisphere structural measure in the
-#' models. Finally, you can list variables that are present in \code{covars} but
-#' you would like to exclude from the models.
+#' models. Finally, you can specify variables that are present in \code{covars}
+#' but you would like to exclude from the models.
+#'
+#' If you do not explicitly specify the atlas name, then it will be guessed from
+#' the size of your data. This could cause problems if you are using a custom
+#' atlas, with or without the same number of regions as a dataset in the
+#' package.
 #'
 #' @param dt.vol A \code{data.table} containing all the volumetric measure of
-#'   interest (i.e., the object \code{lhrh} as ouptut by
-#'   \code{\link{brainGraph_init}})
+#'   interest (i.e., the object \code{lhrh} as output by
+#'   \code{\link{import_scn}})
 #' @param covars A \code{data.table} of the covariates of interest
 #' @param method Character string indicating whether to test models for subject
-#'   groups separately or combined (default: \code{comb.groups})
+#'   groups separately or combined. Default: \code{comb.groups}
 #' @param use.mean Logical should we control for the mean hemispheric brain
-#'   value (e.g. mean LH/RH cortical thickness) (default: \code{FALSE})
-#' @param exclude Character vector of covariates to exclude (default:
-#'   \code{NULL})
+#'   value (e.g. mean LH/RH cortical thickness). Default: \code{FALSE}
+#' @param exclude.cov Character vector of covariates to exclude. Default:
+#'   \code{NULL}
+#' @param atlas Character string indicating the brain atlas
 #' @param ... Arguments passed to \code{\link{brainGraph_GLM_design}} (optional)
 #' @export
 #'
-#' @return An object of class \code{brainGraph_resids} with elements:
+#' @return \code{get.resid} - an object of class \code{brainGraph_resids} with
+#'   elements:
 #'   \item{X}{The \emph{design matrix}}
 #'   \item{method}{The input argument \code{method}}
 #'   \item{use.mean}{The input argument \code{use.mean}}
-#'   \item{all.dat.tidy}{The tidied \code{data.table} of volumetric data (e.g.,
-#'     mean regional cortical thickness) and covariates, along with
-#'     \emph{resids} column added}
-#'   \item{resids.all}{The "wide" \code{data.table} of residuals}
-#'   \item{groups}{Group names}
-#' @seealso \code{\link{rstudent}}
+#'   \item{all.dat.long}{A \code{data.table} in \dQuote{long} format of the
+#'     input structural data merged with the covariates, and a \emph{resids}
+#'     column added}
+#'   \item{resids.all}{The \dQuote{wide} \code{data.table} of residuals}
+#'   \item{Group}{Group names}
+#' @name Residuals
+#' @rdname residuals
+#' @seealso \code{\link[stats]{influence.measures}}, \code{\link[stats]{qqnorm}}
 #' @family Structural covariance network functions
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
 get.resid <- function(dt.vol, covars, method=c('comb.groups', 'sep.groups'),
-                      use.mean=FALSE, exclude=NULL, ...) {
-  region <- resids <- Group <- Study.ID <- value <- NULL
+                      use.mean=FALSE, exclude.cov=NULL, atlas=NULL, ...) {
+  Region <- resids <- value <- NULL
 
-  stopifnot('Group' %in% names(covars))
+  sID <- getOption('bg.subject_id')
+  gID <- getOption('bg.group')
+  stopifnot(gID %in% names(covars))
+  if (!sID %in% names(covars)) covars[, eval(sID) := as.character(seq_len(nrow(covars)))]
   method <- match.arg(method)
-  groups <- covars[, levels(factor(Group))]
-  exclude <- c('Study.ID', exclude)
-  DT.cov <- merge(covars, dt.vol, by='Study.ID')
-  DT.m <- melt(DT.cov, id.vars=names(covars), variable.name='region')
-  setkey(DT.m, region, Study.ID)
+  grps <- covars[, levels(factor(get(gID)))]
+  exclude.cov <- c(sID, exclude.cov)
+  DT.cov <- merge(covars, dt.vol, by=sID)
+  DT.m <- melt(DT.cov, id.vars=names(covars), variable.name='Region')
+  setkeyv(DT.m, c('Region', sID))
 
   if (isTRUE(use.mean)) {
     if (length(grep('^l.*', names(dt.vol))) == 0) {
@@ -57,29 +69,29 @@ get.resid <- function(dt.vol, covars, method=c('comb.groups', 'sep.groups'),
       lh <- '^l.*'
       rh <- '^r.*'
     }
-    mean.lh <- dt.vol[, rowMeans(.SD), .SDcols=names(dt.vol)[grep(lh, names(dt.vol))], by=Study.ID]
-    mean.rh <- dt.vol[, rowMeans(.SD), .SDcols=names(dt.vol)[grep(rh, names(dt.vol))], by=Study.ID]
+    mean.lh <- dt.vol[, rowMeans(.SD), .SDcols=names(dt.vol)[grep(lh, names(dt.vol))], by=sID]
+    mean.rh <- dt.vol[, rowMeans(.SD), .SDcols=names(dt.vol)[grep(rh, names(dt.vol))], by=sID]
     covars.lh <- cbind(covars, mean.lh)
     covars.rh <- cbind(covars, mean.rh)
 
     if (method == 'comb.groups') {
-      lhvars <- get_lm_vars(covars.lh, exclude, ...)
-      rhvars <- get_lm_vars(covars.rh, exclude, ...)
+      lhvars <- get_lm_vars(covars.lh, exclude.cov, ...)
+      rhvars <- get_lm_vars(covars.rh, exclude.cov, ...)
 
-      DT.m[grep(lh, region), resids := rstudent_mat(lhvars, value), by=region]
-      DT.m[grep(rh, region), resids := rstudent_mat(rhvars, value), by=region]
+      DT.m[grep(lh, Region), resids := rstudent_mat(lhvars, value), by=Region]
+      DT.m[grep(rh, Region), resids := rstudent_mat(rhvars, value), by=Region]
       X <- list(lh=lhvars$X, rh=rhvars$X)
     } else {
-      covars.lh <- split(covars.lh, by='Group')
-      covars.rh <- split(covars.rh, by='Group')
-      DT.m <- split(DT.m, by='Group')
-      X <- sapply(groups, function(x) NULL)
-      for (g in groups) {
-        lhvars <- get_lm_vars(covars.lh[[g]], exclude, ...)
-        rhvars <- get_lm_vars(covars.rh[[g]], exclude, ...)
+      covars.lh <- split(covars.lh, by=gID)
+      covars.rh <- split(covars.rh, by=gID)
+      DT.m <- split(DT.m, by=gID)
+      X <- setNames(vector('list', length(grps)), grps)
+      for (g in grps) {
+        lhvars <- get_lm_vars(covars.lh[[g]], exclude.cov, ...)
+        rhvars <- get_lm_vars(covars.rh[[g]], exclude.cov, ...)
 
-        DT.m[[g]][grep(lh, region), resids := rstudent_mat(lhvars, value), by=region]
-        DT.m[[g]][grep(rh, region), resids := rstudent_mat(rhvars, value), by=region]
+        DT.m[[g]][grep(lh, Region), resids := rstudent_mat(lhvars, value), by=Region]
+        DT.m[[g]][grep(rh, Region), resids := rstudent_mat(rhvars, value), by=Region]
         X[[g]] <- list(lh=lhvars$X, rh=rhvars$X)
       }
       DT.m <- rbindlist(DT.m)
@@ -87,16 +99,16 @@ get.resid <- function(dt.vol, covars, method=c('comb.groups', 'sep.groups'),
 
   } else {
     if (method == 'comb.groups') {
-      lmvars <- get_lm_vars(covars, exclude, ...)
-      DT.m[, resids := rstudent_mat(lmvars, value), by=region]
+      lmvars <- get_lm_vars(covars, exclude.cov, ...)
+      DT.m[, resids := rstudent_mat(lmvars, value), by=Region]
       X <- lmvars$X
     } else {
-      covars <- split(covars, by='Group')
-      DT.m <- split(DT.m, by='Group')
-      X <- sapply(groups, function(x) NULL)
-      for (g in groups) {
-        lmvars <- get_lm_vars(covars[[g]], exclude, ...)
-        DT.m[[g]][, resids := rstudent_mat(lmvars, value), by=region]
+      covars <- split(covars, by=gID)
+      DT.m <- split(DT.m, by=gID)
+      X <- setNames(vector('list', length(grps)), grps)
+      for (g in grps) {
+        lmvars <- get_lm_vars(covars[[g]], exclude.cov, ...)
+        DT.m[[g]][, resids := rstudent_mat(lmvars, value), by=Region]
         X[[g]] <- lmvars$X
       }
       DT.m <- rbindlist(DT.m)
@@ -105,17 +117,20 @@ get.resid <- function(dt.vol, covars, method=c('comb.groups', 'sep.groups'),
   }
 
   # Return data to "wide" format with just the residuals
-  resids.all <- dcast(DT.m, 'Study.ID + Group ~ region', value.var='resids')
-  setkey(resids.all, Group, Study.ID)
+  resids.all <- dcast(DT.m, paste(sID, '+', gID, '~ Region'), value.var='resids')
+  setkeyv(resids.all, c(gID, sID))
 
-  out <- list(X=X, method=method, use.mean=use.mean, all.dat.tidy=DT.m, resids.all=resids.all, groups=groups)
+  out <- list(X=X, method=method, use.mean=use.mean, all.dat.long=DT.m,
+              resids.all=resids.all, Group=grps, atlas=NULL)
+  out$atlas <- if (is.null(atlas)) guess_atlas(dt.vol) else atlas
+
   class(out) <- c('brainGraph_resids', class(out))
   return(out)
 }
 
 #' Get some variables for LM
 #'
-#' @inheritParams get.resid
+#' @inheritParams Residuals
 #' @keywords internal
 #' @return A list containing:
 #'   \item{X}{The design matrix}
@@ -123,13 +138,12 @@ get.resid <- function(dt.vol, covars, method=c('comb.groups', 'sep.groups'),
 #'   \item{n}{The number of observations}
 #'   \item{p}{The number of parameters}
 
-get_lm_vars <- function(covars, exclude, ...) {
-  X <- brainGraph_GLM_design(covars[, !exclude, with=F], ...)
-  H <- X %*% solve(crossprod(X)) %*% t(X)
+get_lm_vars <- function(covars, exclude.cov, ...) {
+  X <- brainGraph_GLM_design(covars[, !exclude.cov, with=FALSE], ...)
+  H <- X %*% tcrossprod(solve(crossprod(X)), X)
   lev <- diag(H)
-  n <- nrow(X)
-  p <- ncol(X)
-  return(list(X=X, lev=lev, n=n, p=p))
+  dims <- dim(X)
+  return(list(X=X, lev=lev, n=dims[1L], p=dims[2L]))
 }
 
 #' Calculate studentized residuals with matrix input
@@ -148,56 +162,59 @@ rstudent_mat <- function(lmvars, y) {
 
 #' Indexing for structural covariance residuals
 #'
-#' The \code{[} method will let you reorder or subset residuals based on a given
+#' The \code{[} method reorders or subsets residuals based on a given
 #' numeric vector. However, this is used in bootstrap and permutation analysis
 #' and should generally not be called directly by the user.
 #'
-#' @param x A \code{brainGraph_resids} object
+#' @param x,object A \code{brainGraph_resids} object
 #' @param i Numeric vector of the indices
-#' @param g Character string indicating the group (default: \code{NULL})
+#' @param g Character string indicating the group. Default: \code{NULL}
 #' @export
-#' @method [ brainGraph_resids
 #'
 #' @name Extract.brainGraph_resids
-#' @rdname get.resid
+#' @rdname residuals
 
 `[.brainGraph_resids` <- function(x, i, g=NULL) {
-  Group <- Study.ID <- NULL
-  if (!is.null(g)) x$resids.all <- x$resids.all[g]
-  if (missing(i)) i <- seq_len(nrow(x$resids.all))
+  sID <- getOption('bg.subject_id')
+  gID <- getOption('bg.group')
+  if (!is.null(g)) x$resids.all <- droplevels(x$resids.all[g])
+  if (missing(i)) i <- seq_len(dim(x$resids.all)[1L])
   x$resids.all <- x$resids.all[i]
-  setkey(x$resids.all, Group, Study.ID)
-  x$all.dat.tidy <- x$all.dat.tidy[Study.ID %in% x$resids.all$Study.ID]
+  x$Group <- x$resids.all[, levels(factor(get(gID)))]
+  setkeyv(x$resids.all, c(gID, sID))
+  x$all.dat.long <- x$all.dat.long[get(sID) %in% case.names(x)]
   return(x)
 }
 
 #' Print a summary of residuals for structural covariance data
 #'
-#' @param object A \code{brainGraph_resids} object
-#' @param regions Character vector of region(s) to focus on; default behavior is
+#' The \code{summary} method prints the number of outliers per region, and the
+#' number of times a given subject was an outlier (i.e., across regions).
+#'
+#' @param region Character vector of region(s) to focus on; default behavior is
 #'   to show summary for all regions
 #' @export
-#' @method summary brainGraph_resids
 #' @return \code{\link{summary.brainGraph_resids}} returns a list with two
 #'   data tables, one of the residuals, and one of only the outlier regions
-#' @rdname get.resid
+#' @rdname residuals
 
-summary.brainGraph_resids <- function(object, regions=NULL, ...) {
-  region <- resids <- Study.ID <- NULL
-  myregions <- regions
-  if (is.null(myregions)) myregions <- object$all.dat.tidy[, levels(region)]
-  DT <- droplevels(object$all.dat.tidy[region %in% myregions,
-                   c('Study.ID', 'Group', 'region', 'resids')])
-  setkey(DT, region, resids)
-  outliers <- DT[, .SD[abs(resids) > abs(mean(resids) + 2*sd(resids))], by=region]
-  outliers.reg <- outliers[, .N, by=region]
-  outliers.reg.vec <- structure(outliers.reg$N, names=as.character(outliers.reg$region))
+summary.brainGraph_resids <- function(object, region=NULL, ...) {
+  Region <- resids <- NULL
+  sID <- getOption('bg.subject_id')
+  gID <- getOption('bg.group')
+  if (is.null(region)) region <- region.names(object)
+  DT <- droplevels(object$all.dat.long[Region %in% region,
+                                       c(sID, gID, 'Region', 'resids')])
+  setkey(DT, Region, resids)
+  outliers <- DT[, .SD[abs(resids) > abs(mean(resids) + 2*sd(resids))], by=Region]
+  outliers.reg <- outliers[, .N, by=Region]
+  outliers.reg.vec <- structure(outliers.reg$N, names=as.character(outliers.reg$Region))
 
-  outliers.sub <- outliers[, .N, by=Study.ID]
-  outliers.sub.vec <- structure(outliers.sub$N, names=as.character(outliers.sub$Study.ID))
+  outliers.sub <- outliers[, .N, by=sID]
+  outliers.sub.vec <- structure(outliers.sub$N, names=as.character(outliers.sub[, get(sID)]))
 
-  out <- list(DT.sum=DT,
-              outliers=list(DT=outliers, region=outliers.reg.vec, subject=outliers.sub.vec))
+  out <- list(Region=region, DT.sum=DT,
+              outliers=list(DT=outliers, Region=outliers.reg.vec, subject=outliers.sub.vec))
   class(out) <- c('summary.brainGraph_resids', class(out))
   return(out)
 }
@@ -207,35 +224,40 @@ summary.brainGraph_resids <- function(object, regions=NULL, ...) {
 #' @keywords internal
 
 print.summary.brainGraph_resids <- function(x, ...) {
-  title <- 'Structural covariance residuals'
-  message('\n', title, '\n', rep('-', getOption('width') / 2))
-  cat('Number of outliers per region: (sorted in descending order)\n')
-  print(sort(x$outliers$region, decreasing=TRUE))
+  resids <- NULL
+  print_title_summary('Structural covariance residuals')
+  cat('\n')
+  width <- getOption('width')
+  dashes <- rep('-', width / 4)
+  message('# of outliers per region: (sorted in descending order)\n', dashes)
+  print(sort(x$outliers$Region, decreasing=TRUE))
+  cat('\n')
 
-  cat('\n\nNumber of times each subject was an outlier: (sorted in descending order)\n')
+  message('Number of times each subject was an outlier: (sorted in descending order)\n', dashes)
   print(sort(x$outliers$subject, decreasing=TRUE))
   cat('\n')
+
+  message('Outliers\n', dashes)
+  print(x$outliers$DT[order(resids)])
   invisible(x)
 }
 
 #' Plot model residuals for each brain region
 #'
-#' Check the model residuals for each brain region in a structural covariance
-#' analysis. It shows a \emph{qqplot} of the studentized residuals, as output
-#' from \code{\link{get.resid}}.
+#' The \code{plot} method lets you check the model residuals for each brain
+#' region in a structural covariance analysis. It shows a \emph{qqplot} of the
+#' studentized residuals, as output from \code{\link{get.resid}}.
 #'
-#' @param x A \code{brainGraph_resids} object (from \code{\link{get.resid}})
-#' @param cols Logical indicating whether to color by group (default: FALSE)
-#' @inheritParams summary.brainGraph_resids
+#' @param cols Logical indicating whether to color by group. Default:
+#'   \code{FALSE}
+#' @inheritParams plot.bg_GLM
 #' @export
-#' @method plot brainGraph_resids
 #' @importFrom ggrepel geom_text_repel
 #'
-#' @return A list of \code{\link[ggplot2]{ggplot}} objects
+#' @return The \code{plot} method returns a \emph{list} of
+#'   \code{\link[ggplot2]{ggplot}} objects
 #'
-#' @family Structural covariance network functions
-#' @seealso \code{\link[stats]{qqnorm}}
-#' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
+#' @rdname residuals
 #' @examples
 #' \dontrun{
 #' myresids <- get.resids(lhrh, covars)
@@ -246,23 +268,26 @@ print.summary.brainGraph_resids <- function(x, ...) {
 #' ggsave('residuals.pdf', ml)
 #' }
 
-plot.brainGraph_resids <- function(x, regions=NULL, cols=FALSE, ...) {
-  region <- ind <- mark <- Study.ID <- resids <- NULL
-  DT <- summary(x, regions=regions)$DT.sum
-  regions <- DT[, levels(region)]
+plot.brainGraph_resids <- function(x, region=NULL, cols=FALSE, ids=TRUE, ...) {
+  Region <- ind <- mark <- resids <- NULL
+  sID <- getOption('bg.subject_id')
+  gID <- getOption('bg.group')
+  DT <- summary(x, region=region)$DT.sum
+  regions <- DT[, levels(Region)]
+  setkeyv(DT, c(gID, sID))
 
-  setkey(DT, region, Study.ID)
-  DT[, ind := as.character(.SD[, .I]), by=region]
-  setkey(DT, region, resids)
-  DT[, x := qnorm(ppoints(resids)), by=region]
-  DT[, mark := ifelse(abs(resids) > abs(mean(resids) + 2*sd(resids)), 1, 0), by=region]
+  rnames <- if (isTRUE(ids)) case.names(x) else as.character(seq_len(nobs(x)))
+  DT[, ind := rnames, by=Region]
+  setkey(DT, Region, resids)
+  DT[, x := qnorm(ppoints(resids)), by=Region]
+  DT[, mark := ifelse(abs(resids) > abs(mean(resids) + 2*sd(resids)), 1, 0), by=Region]
   DT[mark == 0, ind := '']
   DT[, mark := as.factor(mark)]
 
   # Local function to plot for a single region
   plot_single <- function(DT.resids, cols) {
-    Group <- resids <- NULL
-    p <- ggplot(DT.resids, aes(x=x, y=resids, col=Group)) +
+    Region <- resids <- NULL
+    p <- ggplot(DT.resids, aes(x=x, y=resids, col=get(gID))) +
       geom_text_repel(aes(label=ind), size=3) +
       geom_point(aes(shape=mark, size=mark)) +
       geom_line(aes(x=x, y=x), col='gray50') +
@@ -271,17 +296,17 @@ plot.brainGraph_resids <- function(x, regions=NULL, cols=FALSE, ...) {
       theme(plot.title=element_text(hjust=0.5, size=10, face='bold'),
             legend.position='none',
             axis.text.y=element_text(hjust=0.5, angle=90)) +
-      labs(title=paste0('Normal Q-Q: ', DT.resids[, unique(region)]),
+      labs(title=paste0('Normal Q-Q: ', DT.resids[, unique(Region)]),
            x='Theoretical Quantiles', y='Sample Quantiles')
     if (!isTRUE(cols)) {
-      p <- p + scale_color_manual(values=rep('black', DT.resids[, length(unique(Group))]))
+      p <- p + scale_color_manual(values=rep('black', DT.resids[, length(unique(get(gID)))]))
     }
     return(p)
   }
 
-  p.all <- sapply(regions, function(x) NULL)
+  p.all <- setNames(vector('list', length(regions)), regions)
   for (z in regions) {
-    p.all[[z]] <- plot_single(DT[region == z], cols)
+    p.all[[z]] <- plot_single(DT[Region == z], cols)
   }
   return(p.all)
 }

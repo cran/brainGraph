@@ -28,20 +28,20 @@ for all observations (only valid for 'violin' plots) (default: TRUE)}
 A ggplot object
 }
 \description{
-This function takes a "tidied" dataset of cortical volumetric measures
+This function takes a \dQuote{tidied} dataset of cortical volumetric measures
 (thickness, volume, LGI, etc.) and plots a histogram or violin plot for 1 or
 more groups, and of 1 or more brain regions.
 }
 \seealso{
-\code{\link[ggplot2]{geom_histogram}, \link[ggplot2]{geom_vline}}
+\code{\link[ggplot2]{geom_histogram}, \link[ggplot2]{geom_abline}}
 
-Other Structural covariance network functions: \code{\link{IndividualContributions}},
-  \code{\link{brainGraph_boot}},
-  \code{\link{brainGraph_init}},
+Other Structural covariance network functions: \code{\link{Bootstrapping}},
+  \code{\link{IndividualContributions}},
+  \code{\link{Residuals}},
   \code{\link{brainGraph_permute}},
-  \code{\link{corr.matrix}}, \code{\link{get.resid}},
-  \code{\link{plot.brainGraph_resids}}
+  \code{\link{corr.matrix}}, \code{\link{import_scn}}
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}
 }
+\concept{Structural covariance network functions}

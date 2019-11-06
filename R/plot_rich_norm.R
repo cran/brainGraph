@@ -1,18 +1,22 @@
 #' Plot normalized rich club coefficients against degree threshold
 #'
-#' Returns a \code{\link[ggplot2]{ggplot}} object of a line plot of the normalized rich club
-#' coefficient for up to two subject groups. Optionally will include a shaded
-#' region demarcating the \code{\link{rich_core}} cutoff.
+#' Returns a \code{\link[ggplot2]{ggplot}} object of a line plot of the
+#' normalized rich club coefficient. Optionally will include a shaded region
+#' demarcating the \code{\link{rich_core}} cutoff (if you supply a list of graph
+#' objects to the \code{g} argument).
 #'
 #' @param rich.dt A \code{data.table} with rich-club coefficients
 #' @param facet.by A character string indicating whether the variable of
-#' interest is "density" or "threshold" (e.g. with DTI data)
+#' interest is \dQuote{density} or \dQuote{threshold} (e.g. with DTI data)
 #' @param densities A numeric vector of the densities to plot
-#' @param alpha The significance level (default: 0.05)
+#' @param alpha The significance level. Default: \code{0.05}
 #' @param fdr A logical, indicating whether or not to use the FDR-adjusted
-#'   p-value for determining significance (default: TRUE)
-#' @param g A list (of lists) of \code{igraph} graph objects; required if you
+#'   p-value for determining significance. Default: \code{TRUE}
+#' @param g.list A list \code{brainGraphList} objects; required if you
 #'   want to plot a shaded region demarcating the \code{\link{rich_core}}
+#' @param smooth Logical indicating whether or not to use
+#'   \code{\link[ggplot2]{geom_smooth}} when data from multiple subjects (per
+#'   group) are present. Default: \code{TRUE}. Ignored for group-level data.
 #' @export
 #'
 #' @return A \code{\link[ggplot2]{ggplot}} object
@@ -25,60 +29,71 @@
 #' }
 
 plot_rich_norm <- function(rich.dt, facet.by=c('density', 'threshold'),
-                           densities, alpha=0.05, fdr=TRUE, g=NULL) {
-  p.fdr <- yloc <- Group <- norm <- xstart <- xend <- Study.ID <- NULL
+                           densities, alpha=0.05, fdr=TRUE, g.list=NULL, smooth=TRUE) {
+  yloc <- norm <- xstart <- xend <- NULL
+  gID <- getOption('bg.group')
 
   facet.by <- match.arg(facet.by)
-  subDT <- rich.dt[abs(get(facet.by) - densities) < .005]
-  if (isTRUE(fdr)) {
-    subDT[, star := ifelse(p.fdr < alpha, '*', '')]
-  } else {
-    subDT[, star := ifelse(p < alpha, '*', '')]
-  }
-  subDT[, yloc := min(norm, na.rm=TRUE) - 0.05 * diff(range(norm, na.rm=TRUE)), by=facet.by]
-  if (nlevels(subDT$Group) > 1) {
-    for (i in 2:nlevels(subDT$Group)) {
-      subDT[Group == levels(subDT$Group)[i], yloc := yloc - i * 0.05 * diff(range(norm, na.rm=TRUE))]
+  subDT <- rich.dt[round(get(facet.by), 2) %in% round(densities, 2)]
+  pvar <- if (isTRUE(fdr)) 'p.fdr' else 'p'
+  subDT[, star := ifelse(get(pvar) < alpha, '*', '')]
+  subDT[, yloc := extendrange(norm), by=facet.by]
+  subDT[, eval(gID) := as.factor(get(gID))]
+  grps <- subDT[, levels(get(gID))]
+  if (length(grps) > 1) {
+    for (i in 2:length(grps)) {
+      subDT[get(gID) == grps[i], yloc := yloc - i * 0.05 * diff(range(norm, na.rm=TRUE)), by=facet.by]
     }
   }
-  setkeyv(subDT, c(facet.by, 'Group'))
+  setkeyv(subDT, c(facet.by, gID))
 
-  if (!is.null(g)) {
-    densities.g <- round(sapply(g[[1]], graph_attr, 'density'), 2)
+  rects <- data.table(density=subDT[, unique(get(facet.by))], xstart=0L, xend=0L,
+                      Group=rep(subDT[, unique(get(gID))],
+                                each=length(densities)))
+  setnames(rects, 'Group', gID)
+  if (!is.null(g.list)) {
+    # Check if components are 'brainGraphList' objects
+    matches <- vapply(g.list, inherits, logical(1), 'brainGraphList')
+    if (any(!matches)) stop("Input must be a list of 'brainGraphList' objects.")
+
+    densities.g <- round(vapply(g.list, function(x) graph_attr(x[1], 'density'), numeric(1)),  2)
     densities.g <- which(densities.g %in% round(densities, 2))
-    g <- lapply(g, `[`, densities.g)
-    k <- lapply(g, sapply, function(x) rich_core(x)$k.r)
+    g.list <- g.list[densities.g]
+    k <- vapply(g.list, function(y) vapply(y[], function(x) rich_core(x)$k.r, integer(1)), integer(length(g.list)))
+    max.k <- apply(as.matrix(k), 1, max)
 
-    if (length(densities) == 1) {
-      max.k <- apply(as.matrix(sapply(k, function(x) x), nrow=1), 2, max)
-    } else {
-      max.k <- apply(sapply(k, function(x) x), 1, max)
-    }
-    rects <- data.table(density=subDT[, unique(density)], xstart=max.k,
-                        xend=subDT[, max(k), by=density]$V1,
-                        Group=rep(subDT[, unique(Group)],
-                                  each=length(densities)))
-  } else {
-    rects <- data.table(density=subDT[, unique(density)], xstart=0, xend=0,
-                        Group=rep(subDT[, unique(Group)],
-                                  each=length(densities)))
+    rects[, xstart := max.k]
+    rects[, xend := subDT[, max(k), by=density]$V1]
   }
   setnames(rects, 'density', facet.by)
   setkeyv(rects, key(subDT))
+  rects[, eval(facet.by) := factor(get(facet.by), labels=densities)]
+  subDT[, eval(facet.by) := factor(get(facet.by), labels=densities)]
+  setkeyv(subDT, c(facet.by, gID))
+  setkeyv(rects, c(facet.by, gID))
 
-  if ('Study.ID' %in% names(subDT)) {
+  sID <- getOption('bg.subject_id')
+  if (sID %in% names(subDT)) {
     rects <- subDT[rects]
-    p <- ggplot(data=rects, aes(x=k, y=norm, group=Study.ID))
+    p <- ggplot(data=rects, aes(x=k, y=norm, group=get(sID)))
   } else {
     p <- ggplot(data=subDT[rects], aes(x=k, y=norm))
+    smooth <- FALSE
   }
   p <- p +
-    geom_line(aes(col=Group)) +
     geom_hline(yintercept=1, size=0.5, lty=2) +
-    geom_text(aes(y=yloc, col=Group, label=star), size=5, show.legend=F) +
-    geom_rect(data=rects,
-              aes(x=NULL, y=NULL, xmin=xstart, xmax=xend, ymin=-Inf, ymax=Inf),
-              alpha=0.08, fill='red') +
+    geom_text(aes(y=yloc, col=get(gID), label=star), size=6, show.legend=FALSE)
+
+  if (isTRUE(smooth)) {
+    p <- p + stat_smooth(aes(col=get(gID), group=get(gID)))
+  } else {
+    p <- p +
+      geom_line(aes(col=get(gID))) +
+      geom_rect(data=rects,
+                aes(x=NULL, y=NULL, xmin=xstart, xmax=xend, ymin=-Inf, ymax=Inf),
+                alpha=0.08, fill='red')
+  }
+  p <- p +
     facet_wrap(as.formula(paste('~', facet.by)), scales='free') +
     labs(x='Degree (k)', y=expression(phi[norm])) +
     theme(legend.position='bottom')

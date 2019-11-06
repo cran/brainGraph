@@ -16,31 +16,26 @@
 #' for all nodes \eqn{j} in node \eqn{i}'s module, and
 #' \deqn{\bar{c_{iS}} = c_{iS} / max(c_n)}
 #'
-#' @param g An \code{igraph} graph object
+#' @inheritParams efficiency
 #' @param memb A numeric vector of membership indices of each vertex
 #' @param centr Character string; the type of centrality to use in calculating
 #'   GC (default: \code{btwn.cent})
 #' @export
-#'
 #' @return A vector of the participation coefficients, within-module degree
 #'   z-scores, or gateway coefficients for each vertex of the graph.
 #'
-#' @name VertexRoles
-#' @aliases gateway_coeff
+#' @name Vertex Roles
 #' @rdname vertex_roles
 #'
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
-#' @references Vargas E.R. & Wahl L.M. (2014) The gateway coefficient: a novel
-#'   metric for identifying critical connections in modular networks. Eur Phys J
-#'   B, 87:161-170.
+#' @references Vargas, E.R. and Wahl, L.M. (2014) The gateway coefficient: a
+#'   novel metric for identifying critical connections in modular networks.
+#'   \emph{Eur Phys J B}, \bold{87}, 161--170.
+#'   \url{https://dx.doi.org/10.1140/epjb/e2014-40800-7}
 
-gateway_coeff <- function(g, memb, centr=c('btwn.cent', 'degree', 'strength')) {
+gateway_coeff <- function(g, memb, centr=c('btwn.cent', 'degree', 'strength'), A=NULL) {
   stopifnot(is_igraph(g))
-  if ('degree' %in% vertex_attr_names(g)) {
-    Ki <- V(g)$degree
-  } else {
-    Ki <- degree(g)
-  }
+  Ki <- check_degree(g)
   centr <- match.arg(centr)
   if (centr == 'btwn.cent') {
     if ('btwn.cent' %in% vertex_attr_names(g)) {
@@ -51,21 +46,15 @@ gateway_coeff <- function(g, memb, centr=c('btwn.cent', 'degree', 'strength')) {
   } else if (centr == 'degree') {
     cent <- Ki
   } else if (centr == 'strength') {
-    if ('strength' %in% vertex_attr_names(g)) {
-      cent <- V(g)$strength
-    } else {
-      cent <- strength(g)
-    }
+    cent <- check_strength(g)
   }
   N <- max(memb)
   if (N == 1) return(rep(0, length(memb)))
-  Cn <- max(vapply(seq_len(N), function(x) sum(cent[which(memb == x)]), numeric(1)))
+  Cn <- max(vapply(seq_len(N), function(x) sum(cent[memb == x]), numeric(1)))
 
-  A <- as_adj(g, sparse=FALSE, names=FALSE)
+  if (is.null(A)) A <- as_adj(g, sparse=FALSE, names=FALSE)
   Kis <- vapply(seq_len(N), function(x) colSums(A * (memb==x)), numeric(length(Ki)))
-  M <- which(tabulate(memb) > 1)
-  Kjs <- matrix(0, nrow=N, ncol=N)
-  Kjs[M, M] <- vapply(M, function(x) colSums(Kis[which(memb==x), M, drop=FALSE]), numeric(length(M)))
+  Kjs <- rowsum(Kis, memb)
   barKis <- Cis <- matrix(0, nrow=length(Ki), ncol=N)
 
   for (i in which(Ki > 0)) {
@@ -97,23 +86,18 @@ gateway_coeff <- function(g, memb, centr=c('btwn.cent', 'degree', 'strength')) {
 #' equally connected to all other modules.
 #'
 #' @export
-#'
-#' @aliases part_coeff
 #' @rdname vertex_roles
 #'
 #' @references Guimera, R. and Amaral, L.A.N. (2005) Cartography of complex
-#' networks: modules and universal roles, Journal of Statistical Mechanics:
-#' Theory and Experiment, 02, P02001.
+#'   networks: modules and universal roles. \emph{Journal of Statistical
+#'   Mechanics: Theory and Experiment}, \bold{02}, P02001.
+#'   \url{https://dx.doi.org/10.1088/1742-5468/2005/02/P02001}
 
-part_coeff <- function(g, memb) {
+part_coeff <- function(g, memb, A=NULL) {
   stopifnot(is_igraph(g))
-  if ('degree' %in% vertex_attr_names(g)) {
-    Ki <- V(g)$degree
-  } else {
-    Ki <- degree(g)
-  }
+  Ki <- check_degree(g)
   N <- max(memb)
-  A <- as_adj(g, sparse=FALSE, names=FALSE)
+  if (is.null(A)) A <- as_adj(g, sparse=FALSE, names=FALSE)
   Kis <- vapply(seq_len(N), function(x) colSums(A * (memb == x)), numeric(length(Ki)))
   PC <- 1 - ((1 / Ki^2) * rowSums(Kis^2))
 
@@ -133,15 +117,13 @@ part_coeff <- function(g, memb) {
 #' is the standard deviation.
 #'
 #' @export
-#'
-#' @aliases within_module_deg_z_score
 #' @rdname vertex_roles
 
-within_module_deg_z_score <- function(g, memb) {
+within_module_deg_z_score <- function(g, memb, A=NULL) {
   stopifnot(is_igraph(g))
   N <- max(memb)
-  A <- as_adj(g, sparse=FALSE, names=FALSE)
-  z <- Ki <- rep(0, nrow(A))
+  if (is.null(A)) A <- as_adj(g, sparse=FALSE, names=FALSE)
+  z <- Ki <- rep(0, dim(A)[1L])
   Ksi <- sigKsi <- rep(0, N)
 
   for (S in seq_len(N)) {
@@ -151,6 +133,6 @@ within_module_deg_z_score <- function(g, memb) {
     sigKsi[S] <- sd(x)
   }
   z <- (Ki - Ksi[memb]) / sigKsi[memb]
-  z <- ifelse(!is.finite(z), 0, z)
+  z[is.infinite(z)] <- 0
   return(z)
 }

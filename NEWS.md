@@ -1,3 +1,171 @@
+# brainGraph 2.7.2
+
+2019-10-20
+
+## Bug fix
+* The `mediation` package no longer exports `summary.mediate`, so it has to be removed from `brainGraph`
+    * Move `mediation` to *Suggests*, as well
+
+
+# brainGraph 2.7.1
+
+2019-06-29
+
+## Bug fix
+* Fix bug in `import_scn` so the *Study.ID* column is always read as `character`
+* Remove deprecated function `brainGraph_init`
+
+
+# brainGraph 2.7.0
+
+2018-12-15
+
+## New functions/features
+* `import_scn` replaces `brainGraph_init`, with a few changes in behavior:
+    * It is no longer necessary to abbreviate region names yourself; the function does it automatically
+    * Expects files with the name `${parcellation}_${hemi}_${modality}.csv` in the `datadir`
+        - Here, `${parcellation}` could be `aparc`, for example
+        - Also, `${modality}` could be `thickness`
+    * If the *atlas* you are using includes `scgm`, there should be a `asegstats.csv` file
+* `aop` and `loo` now return *S3* objects, with class name `IC`
+    * These also have `summary` and `plot` methods
+    * Furthermore, these objects return some more information
+
+## Minor changes
+* The `exclude` argument to `get.resid` is now `exclude.cov` to highlight that it is for specifying *covariates* to exclude from the GLM
+
+# brainGraph 2.6.1
+
+2018-12-07
+
+## Bug fix
+* Fix bug in `partition`, changing `method` to `part.method`
+* Add some checks in `robustness` so it doesn't throw an error
+
+
+# brainGraph 2.6.0
+
+2018-09-04
+
+## Bug fix
+* Fixed bug in `count_homologous` that affected a subset of atlases
+    * Performance is modestly improved (approx. 2-3x faster)
+
+## New functions/features
+* `count_inter` replaces `count_interlobar`; the new function calculates inter- and intra-group edge counts, where a group of vertices can be a *lobe*, *hemisphere*, *network* (for the `dosenbach160` atlas), or *class* (for the `destrieux` atlases)
+    * The return object is now more informative; the function returns a matrix of all inter- and intra-group edge counts, in addition to a data.table containing a summary (that matches the output of previous versions)
+* `rich_core` now calculates the rich core for weighted networks
+    * In addition, the function runs *considerably* faster:
+        - for smaller sparse graphs, it is ~40-80x faster
+        - for larger dense graphs, it is more than 2,000x faster
+* `robustness` now returns a data.table containing much more information (in addition to the max. connected component ratio)
+    * This makes plotting outputs simpler; see Chapter 14 of the *User Guide*
+    * When `type='edge'`, the function is about 2-3x faster than previous versions
+
+## Minor changes
+* `plot.mtpc`: the stats displayed in the caption have been "transposed", such that `S.crit` and `A.crit` are in the top row
+
+
+# brainGraph 2.5.0
+
+2018-09-01
+
+## Bug fix
+* Fixed regression bug in `NBS` (introduced by `v2.0.0`) which only occurred if `alternative='less'` when calculating the minimum statistic of permuted networks
+
+## Minor changes
+* Updated code that symmetrizes matrices:
+    * Introduced new function, `symm_mean`, that more quickly symmetrizes a matrix about the diagonal by assigining `mean(c(A[i, j], A[j, i]))` to the off-diagonal elements
+    * Uses `pmin` and `pmax` for symmetrizing matrices based on the off-diagonal minimum and maximum, respectively
+* Optimized code in a few functions for faster execution:
+    * `sim.rand.graph.clust` is about 2x faster due to improvement in the `choose.edges` helper function
+    * `centr_lev` and `edge_asymmetry` are also faster
+
+
+# brainGraph 2.4.0
+
+2018-07-21
+
+## New features
+* `hubness`: new function for determining which vertices are hubs
+* `set_brainGraph_attr`
+    * New argument `clust.method` lets the user choose which clustering (community detection) method to use.
+        1. The default is still the `louvain` algorithm.
+        2. If you select `spinglass`, but the graph is unconnected, then `louvain` is used instead.
+        3. If there are any negative edge weights, and you choose anything other than `walktrap` or `spinglass`, the `walktrap`  method is used.
+    * Now calculates `num.hubs` using the new `hubness` function, and calculates separate values for weighted and unweighted networks
+
+
+# brainGraph 2.3.4
+
+2018-07-06
+
+## Bug fix
+* Fixed bugs in `rich_club_norm` that would throw an error if certain graph attributes weren't present
+
+## New features
+* `rich_club_all` - new function that is a wrapper for `rich_club_coeff`, applying over all possible degree values
+
+
+# brainGraph 2.3.3
+
+2018-06-25
+
+## Bug fix
+* Fixed regression bug in `plot.brainGraph`, which occurred when choosing `plane='sagittal'`
+
+
+# brainGraph 2.3.2
+
+2018-06-22
+
+## Bug fix
+* Fixed regression bug when fitting GLM models with a `F contrast`
+* Fixed minor bug in `make_nbs_brainGraph` which did not properly assign the `p.nbs` attribute to all vertices
+
+## Minor change
+* The elements of the `NBS` output object, `p.mat` and `T.mat`, are now 3-dimensional arrays (with extent equal to the # of contrasts) instead of lists of matrices
+
+# brainGraph 2.3.1
+
+2018-06-20
+
+## Bug fix
+* Fixed a bug in `brainGraph_permute` that I didn't catch before
+
+# brainGraph 2.3.0
+
+2018-06-20
+
+## Bug fix
+* `brainGraph_boot` and `corr.matrix`:
+    * Incorrectly calculated `E.global.wt` before; now it transforms edge weights
+    * To do so, includes argument `xfm.type`
+    * Fixed bug when calling `corr.matrix` (added `rand=TRUE`)
+    * Also had to update the return object of `corr.matrix` for this purpose
+* `mtpc`
+    * Previously gave some incorrect resuls when `alt='less'`; fixed
+    * The `plot` method also now gives correct values when `alt='less'`
+* `brainGraph_GLM` now returns the correct *null.thresh* when `alt != 'greater'`
+* `plot.brainGraph`: fixed bug that occurred when `plane='sagittal'` and a `hemi` value was not supplied
+* `plot_rich_norm`: didn't plot values for all degrees present in the networks under certain scenarios
+
+## New features
+* `set_brainGraph_attr` now calculates a graph-level `Lp.wt`, which equals:
+```
+Lpv.wt <- distances(g)
+Lpv.wt[is.infinite(Lpv.wt)] <- NA
+g$Lp.wt <- mean(Lpv.wt[upper.tri(Lpv.wt)], na.rm=T)
+```
+* `plot_rich_norm`: new argument `smooth` lets you plot with a smoother in the case of single-subject data, as opposed to the previous default of a line plot for all subjects
+
+## Minor changes
+* GLM-related and other functions will now:
+    1. Allow for the `Study.ID` column to be *numeric*; they will convert it to class *character*
+    2. Creates a *character* vector of integers if `Study.ID` is not present in the data
+* The `summary.mtpc` method now also prints the value of `clust.size`
+
+
 # brainGraph 2.2.0
 
 2018-05-28
@@ -82,7 +250,7 @@ Release on CRAN; bugfix release.
 ## Bug fix
 * Fixed error in `mtpc` when creating the MTPC statistics `data.table`
 
---------------------------------------------------------------------------------
+
 # brainGraph 2.0.0
 
 2018-02-05
@@ -276,7 +444,7 @@ The classes and corresponding "creation functions" are:
 * `sim.rand.graph.par`: the argument *clustering* is no longer TRUE by default
 
 
---------------------------------------------------------------------------------
+
 # brainGraph 1.0.0
 
 2017-04-10
@@ -315,7 +483,7 @@ The classes and corresponding "creation functions" are:
 * `write_brainnet` replaces `write.brainnet`
 * In the GUI, vertex order in circle plots now more closely reflect their anatomical position, being ordered by y- and x-coordinates (and within *lobe*)
 
---------------------------------------------------------------------------------
+
 # brainGraph 0.72.0
 
 2016-10-10
@@ -397,7 +565,7 @@ The classes and corresponding "creation functions" are:
     function argument
   * Can color vertices by multiple variables
 
---------------------------------------------------------------------------------
+
 # brainGraph 0.62.0
 
 2016-04-22
@@ -472,7 +640,7 @@ where `N` is the number of random graphs generated.
   * Vertex-level *shortest path lengths*
 
 
---------------------------------------------------------------------------------
+
 # brainGraph 0.55.0
 
 2015-12-24
@@ -517,7 +685,7 @@ where `N` is the number of random graphs generated.
 * Exported `plot_perm_diffs`
 * Added argument checking for most functions
 
---------------------------------------------------------------------------------
+
 # brainGraph 0.48.0
 
 2015-12-08
