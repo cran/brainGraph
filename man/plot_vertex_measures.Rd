@@ -4,43 +4,35 @@
 \alias{plot_vertex_measures}
 \title{Plot vertex-level graph measures at a single density or threshold}
 \usage{
-plot_vertex_measures(g.list, measure, facet.by = NULL,
-  group.by = getOption("bg.group"), type = c("violin", "boxplot"),
-  show.points = FALSE, ylabel = measure, ...)
+plot_vertex_measures(tidy.dt, facet.by = "lobe", measure = "btwn.cent",
+  show.points = FALSE, ylabel = NULL)
 }
 \arguments{
-\item{g.list}{A \code{brainGraphList} or a list of \code{brainGraph} objects}
+\item{tidy.dt}{A ``tidied'' \code{data.table} of vertex-level graph measures}
 
-\item{measure}{A character string of the graph measure to plot}
+\item{facet.by}{Character string indicating whether the data should be
+plotted separately by a certain variable (default: 'lobe')}
 
-\item{facet.by}{Character string indicating the variable to facet by (if
-any). Default: \code{NULL}}
-
-\item{group.by}{Character string indicating which variable to group the data
-by. Default: \code{getOption('bg.group')}}
-
-\item{type}{Character string indicating the plot type. Default:
-\code{'violin'}}
+\item{measure}{A character string of the graph measure to plot (default:
+'btwn.cent')}
 
 \item{show.points}{Logical indicating whether or not to show individual data
 points (default: FALSE)}
 
 \item{ylabel}{A character string for the y-axis label}
-
-\item{...}{Other arguments passed to \code{\link[ggplot2]{geom_boxplot}} or
-\code{\link[ggplot2]{geom_violin}}}
 }
 \value{
 A \code{ggplot} object
 }
 \description{
-Creates boxplots of a single vertex-level graph measure at a single density
-or threshold, grouped by the variable specified by \code{group.by} and
-optionally faceted by another variable (e.g., \emph{lobe} or \emph{network}).
+This function creates boxplots of a single vertex-level graph measure at a
+single density or threshold, grouped by the variable specified by
+\code{facet.by} (e.g., \emph{lobe} or \emph{network}).
 }
 \examples{
 \dontrun{
-p.deg <- plot_vertex_measures(g[[1]], facet.by='network', measure='degree')
+ggp.btwn <- plot_vertex_measures(dt.V.tidy, facet.by='network',
+  measure='E.nodal')
 }
 }
 \author{

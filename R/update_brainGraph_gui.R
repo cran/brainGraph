@@ -57,26 +57,26 @@ update_brainGraph_gui <- function(plotDev, g, g2, plotFunc, vsize.measure, ewidt
   #=======================================================
   plotHemi <- switch(hemi$getActive() + 1, 'both', 'L', 'R', 'both', 'both', 'both', 'both', 'both', 'both')
   if (hemi$getActive() > 2) {
-    vgroups <- switch(hemi$getActive() - 2,
-                      seq_len(Nv),
-                      seq_len(Nv),
-                      seq_len(max(V(g)$comm)),
-                      seq_len(max(V(g)$comm)),
-                      sort(unique(V(g)$lobe)),
-                      sort(unique(V(g)$lobe)))
+    groups <- switch(hemi$getActive() - 2,
+                     seq_len(Nv),
+                     seq_len(Nv),
+                     seq_len(max(V(g)$comm)),
+                     seq_len(max(V(g)$comm)),
+                     sort(unique(V(g)$lobe)),
+                     sort(unique(V(g)$lobe)))
     eids <- switch(hemi$getActive() - 2,
                    E(g)[which(V(g)$hemi == 'L') %--% which(V(g)$hemi == 'R')],
                    count_homologous(g),
-                   unique(unlist(sapply(vgroups, function(x)
+                   unique(unlist(sapply(groups, function(x)
                                         as.numeric(E(g)[which(V(g)$comm == x) %--%
-                                                   which(V(g)$comm %in% vgroups[-x])])))),
-                   unique(unlist(sapply(vgroups, function(x)
+                                                   which(V(g)$comm %in% groups[-x])])))),
+                   unique(unlist(sapply(groups, function(x)
                                         as.numeric(E(g)[which(V(g)$comm == x) %--%
                                                    which(V(g)$comm == x)])))),
-                   unique(unlist(sapply(vgroups, function(x)
+                   unique(unlist(sapply(groups, function(x)
                                         as.numeric(E(g)[which(V(g)$lobe == x) %--%
                                                    which(V(g)$lobe != x)])))),
-                   unique(unlist(sapply(vgroups, function(x)
+                   unique(unlist(sapply(groups, function(x)
                                         as.numeric(E(g)[which(V(g)$lobe == x) %--%
                                                    which(V(g)$lobe == x)])))))
     sg.hemi <- subgraph.edges(g, eids)
@@ -102,8 +102,7 @@ update_brainGraph_gui <- function(plotDev, g, g2, plotFunc, vsize.measure, ewidt
     } else {
       g.sub <- make_ego_brainGraph(g, neighbInd)
     }
-    class(g.sub) <- 'igraph'
-    g.sub <- make_brainGraph(g.sub, g$atlas)
+    g.sub <- set_brainGraph_attr(g.sub, g$atlas)
     g <- g.sub
     neighbInd <- which(V(g)$name %in% neighb)
     Nv <- vcount(g)
@@ -183,22 +182,22 @@ update_brainGraph_gui <- function(plotDev, g, g2, plotFunc, vsize.measure, ewidt
              'color.comm.wt', 'color.class', 'color.network', 'color.nbhood')
     if (vertex.color == 'color.nbhood') {
       nbs.l <- lapply(neighbInd, function(x) neighbors(g, x))
-      nbs.l <- nbs.l[lengths(nbs.l) > 0]
-      tab <- table(unlist(nbs.l))
+      tab <- table(unlist(sapply(nbs.l, as.numeric)))
       V(g)$nbhood <- 1
-      for (i in seq_along(nbs.l)) V(g)[nbs.l[[i]]]$nbhood <- i + 1
+      for (i in seq_along(nbs.l)) V(g)[as.numeric(nbs.l[[i]])]$nbhood <- i + 1
       V(g)[as.numeric(names(tab[tab > 1]))]$nbhood <- i + 2
       V(g)[neighbInd]$nbhood <- 1 + 1:length(neighbInd)
       V(g)$nbhood <- V(g)$nbhood - 1
-      g <- set_graph_colors(g, 'color.nbhood', V(g)$nbhood)
+      g <- set_vertex_color(g, 'color.nbhood', V(g)$nbhood)
+      g <- set_edge_color(g, 'color.nbhood', V(g)$nbhood)
     }
   }
 
   # Show vertex labels?
-  vlabel <- if (isTRUE(vertLabels$active)) 'name' else NA
+  vlabel <- ifelse(vertLabels$active == FALSE, NA, 'name')
 
   # Slider for curvature of edges in circle plots
-  curv <- if (length(class(slider)) > 1) slider$getValue() else 0
+  curv <- ifelse(length(class(slider)) > 1, slider$getValue(), 0)
 
   main <- g$Group
   cex.main <- 2.5
@@ -209,7 +208,7 @@ update_brainGraph_gui <- function(plotDev, g, g2, plotFunc, vsize.measure, ewidt
 
   # Show a legend for vertex colors
   show.legend <- FALSE
-  if (vertColor$getActive() %in% c(2, 5, 6) && showLegend$active == TRUE) {
+  if (vertColor$getActive() %in% c(2, 5, 6) & showLegend$active == TRUE) {
     show.legend <- TRUE
   }
 
@@ -218,7 +217,7 @@ update_brainGraph_gui <- function(plotDev, g, g2, plotFunc, vsize.measure, ewidt
        vertex.color=vertex.color, edge.color=edge.color,
        edge.curved=curv, main=main, cex.main=cex.main, show.legend=show.legend)
 
-  if (!is.null(showDiameter) && (showDiameter$active == TRUE || edgeDiffs$active == TRUE)) {
+  if (!is.null(showDiameter) && (showDiameter$active == TRUE | edgeDiffs$active == TRUE)) {
     if (showDiameter$active == TRUE) {
       inds <- as.numeric(get.diameter(g))
       es <- get.edge.ids(g, combn(inds, 2))

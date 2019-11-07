@@ -3,12 +3,14 @@
 #' \code{count_homologous} counts the number of edges between homologous regions
 #' in a brain graph (e.g. between L and R superior frontal).
 #'
-#' @param g A \code{brainGraph} graph object
+#' @param g An \code{brainGraph} graph object
 #' @export
+#'
 #' @return \code{count_homologous} - a named vector of the edge ID's connecting
 #'   homologous regions
 #'
-#' @name Count Edges
+#' @name CountEdges
+#' @aliases count_homologous
 #' @rdname count_edges
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
@@ -37,9 +39,11 @@ count_homologous <- function(g) {
 #' @param group Character string specifying which grouping to calculate edge
 #'   counts for. Default: \code{'lobe'}
 #' @export
+#'
 #' @return \code{count_inter} - a \code{data.table} of total, intra-, and
 #'   inter-group edge counts
 #'
+#' @aliases count_inter
 #' @rdname count_edges
 #' @examples
 #' \dontrun{
@@ -55,18 +59,25 @@ count_inter <- function(g, group=c('lobe', 'hemi', 'network', 'class')) {
   A <- as_adj(g, names=FALSE, sparse=FALSE)
   Nm <- length(group.names)
   mat <- matrix(0, Nm, Nm)
-  vattrs <- vertex_attr(g, group)
-  matches <- lapply(group.names, function(x) which(vattrs == x))
   for (i in seq_len(Nm)) {
-    for (j in seq.int(i, Nm)) {
-      mat[i, j] <- sum(A[matches[[i]], matches[[j]]])
+    for (j in seq_len(Nm)) {
+      mat[i, j] <- sum(A[which(vertex_attr(g, group) == group.names[i]), which(vertex_attr(g, group) == group.names[j])])
     }
   }
-  mat[lower.tri(mat)] <- t(mat)[lower.tri(mat)]
-  intra <- diag(mat) <- diag(mat) / 2
+  diag(mat) <- diag(mat) / 2
   rownames(mat) <- colnames(mat) <- group.names
-  DT <- data.table(group=group.names, intra=intra, inter=rowSums(mat)-intra)
+  DT <- data.table(group=group.names, intra=diag(mat), inter=rowSums(mat)-diag(mat))
   DT[, total := intra + inter]
   setnames(DT, 'group', group)
   return(list(mat=mat, DT=DT))
+}
+
+#' @param lobe Lobe name (deprecated)
+#' @export
+#' @aliases count_interlobar
+#' @rdname count_edges
+
+count_interlobar <- function(g, lobe) {
+  .Deprecated('count_inter')
+  count_inter(g, 'lobe')
 }

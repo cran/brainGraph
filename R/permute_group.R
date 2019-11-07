@@ -9,7 +9,7 @@
 #' If you would like to calculate differences in the area-under-the-curve (AUC)
 #' across densities, then specify \code{auc=TRUE}.
 #'
-#' There are three possible \dQuote{levels}:
+#' There are three possible "levels":
 #' \enumerate{
 #'   \item \emph{graph} Calculate modularity (Louvain algorithm), clustering
 #'   coefficient, characteristic path length, degree assortativity, global
@@ -30,25 +30,22 @@
 #'   your own (default: \code{NULL})
 #' @param auc Logical indicating whether or not to calculate differences in the
 #'   area-under-the-curve of metrics (default: \code{FALSE})
-#' @param level A character string for the attribute \dQuote{level} to calculate
+#' @param level A character string for the attribute "level" to calculate
 #'   differences (default: \code{graph})
 #' @param atlas Character string of the atlas name; required if
-#'   \code{level='graph'}
+#'   \code{level='graph'} (default: \code{NULL})
 #' @param measure A character string specifying the vertex-level metric to
 #'   calculate, only used if \code{level='vertex'} (default: \code{btwn.cent}).
 #'   For the \code{summary} method, this is to focus on a single
 #'   \emph{graph-level} measure (since multiple are calculated at once).
 #' @param .function A custom function you can pass if \code{level='other'}
 #' @export
-#' @importFrom permute shuffleSet
-#' @importFrom foreach getDoParRegistered
-#' @importFrom doParallel registerDoParallel
 #'
 #' @return An object of class \code{brainGraph_permute} with input arguments in
 #'   addition to:
 #'   \item{DT}{A data table with permutation statistics}
 #'   \item{obs.diff}{A data table of the observed group differences}
-#'   \item{Group}{Group names}
+#'   \item{groups}{Group names}
 #'
 #' @family Group analysis functions
 #' @family Structural covariance network functions
@@ -68,8 +65,8 @@ brainGraph_permute <- function(densities, resids, N=5e3, perms=NULL, auc=FALSE,
                                level=c('graph', 'vertex', 'other'),
                                measure=c('btwn.cent', 'degree', 'E.nodal', 'ev.cent',
                                          'knn', 'transitivity', 'vulnerability'),
-                               atlas=resids$atlas, .function=NULL) {
-  gID <- getOption('bg.group')
+                               atlas=NULL, .function=NULL) {
+  Group <- NULL
   stopifnot(inherits(resids, 'brainGraph_resids'))
   measure <- match.arg(measure)
   level <- match.arg(level)
@@ -84,7 +81,7 @@ brainGraph_permute <- function(densities, resids, N=5e3, perms=NULL, auc=FALSE,
   } else if (level == 'vertex') {
     if (isTRUE(auc)) {
       diffFun <- function(densities, meas.list) {
-        sapply(seq_len(dim(meas.list[[1]])[2L]), function(x)
+        sapply(seq_len(ncol(meas.list[[1]])), function(x)
                auc_diff(densities, cbind(meas.list[[1]][, x], meas.list[[2]][, x])))
       }
     } else {
@@ -92,47 +89,40 @@ brainGraph_permute <- function(densities, resids, N=5e3, perms=NULL, auc=FALSE,
     }
   }
 
-  if (is.null(perms)) perms <- shuffleSet(n=nobs(resids), nset=N)
-  dims <- dim(perms)
-  N <- dims[1L]
-  perms <- rbind(perms, seq_len(dims[2L]))  # last row is observed metrics
-  grps <- as.numeric(resids$resids.all[, get(gID)])
+  if (is.null(perms)) perms <- shuffleSet(n=nrow(resids$resids.all), nset=N)
+  N <- nrow(perms)
+  perms <- rbind(perms, 1:ncol(perms))  # last row is observed metrics
+  groups <- as.numeric(resids$resids.all$Group)
 
   # Loop through the permutation matrix
-  if (!getDoParRegistered()) {
-    cl <- makeCluster(getOption('bg.ncpus'))
-    registerDoParallel(cl)
-  }
   res.perm <- switch(level,
-               vertex=permute_vertex_foreach(perms, densities, resids, grps, measure, diffFun),
-               other=permute_other_foreach(perms, densities, resids, grps, .function),
-               graph=permute_graph_foreach(perms, densities, resids, grps, atlas, auc))
+               vertex=permute_vertex_foreach(perms, densities, resids, groups, measure, diffFun),
+               other=permute_other_foreach(perms, densities, resids, groups, .function),
+               graph=permute_graph_foreach(perms, densities, resids, groups, atlas, auc))
 
   if (length(densities) == 1) res.perm <- cbind(densities=densities, res.perm)
 
   if (level == 'vertex') {
     res.perm <- as.data.table(res.perm)
-    regions <- region.names(resids)
-    nc <- dim(res.perm)[2L]
+    regions <- names(resids$resids.all[, !c('Study.ID', 'Group')])
     if (isTRUE(auc)) {
-      setnames(res.perm, seq_len(nc), regions)
+      setnames(res.perm, 1:ncol(res.perm), regions)
     } else {
-      setnames(res.perm, 2:nc, regions)
+      setnames(res.perm, 2:ncol(res.perm), regions)
     }
   }
 
   if (!isTRUE(auc)) {
     setkey(res.perm, densities)
-    obs.ind <- (N + 1) * seq_along(densities)
+    obs.ind <- (N + 1) * 1:length(densities)
     obs.diff <- res.perm[obs.ind]
     res.perm <- res.perm[-obs.ind]
   } else {
-    n <- dim(res.perm)[1L]
-    obs.diff <- res.perm[n]
-    res.perm <- res.perm[-n]
+    obs.diff <- res.perm[.N]
+    res.perm <- res.perm[-.N]
   }
   out <- list(atlas=atlas, auc=auc, N=N, level=level, measure=measure, densities=densities,
-              resids=resids, DT=res.perm, obs.diff=obs.diff, Group=resids$Group)
+              resids=resids, DT=res.perm, obs.diff=obs.diff, groups=resids$groups)
   class(out) <- c('brainGraph_permute', class(out))
   return(out)
 }
@@ -140,12 +130,12 @@ brainGraph_permute <- function(densities, resids, N=5e3, perms=NULL, auc=FALSE,
 #==============================================================================
 # Helper functions
 #==============================================================================
-make_graphs_perm <- function(densities, resids, inds, grps) {
-  corrs <- lapply(unique(grps), function(x)
-                  corr.matrix(resids[which(grps[inds] == x)],
+make_graphs_perm <- function(densities, resids, inds, groups) {
+  corrs <- lapply(unique(groups), function(x)
+                  corr.matrix(resids[which(groups[inds] == x)],
                               densities=densities, rand=TRUE))
   sapply(corrs, lapply, function(x)
-         apply(x$r.thresh, 3, graph_from_adjacency_matrix, mode='undirected', diag=FALSE))
+         apply(x$r.thresh, 3, graph_from_adjacency_matrix, mode='undirected', diag=F))
 }
 
 # Graph level
@@ -155,7 +145,7 @@ diffFun_graph_noAUC <- function(densities, meas.list) {
   return(tmp)
 }
 graph_attr_perm <- function(g, densities, atlas) {
-  g <- lapply(g, lapply, make_brainGraph, atlas, type='random')
+  g <- lapply(g, lapply, make_brainGraph, atlas, rand=TRUE)
 
   mod <- sapply(g, sapply, function(x) modularity(cluster_louvain(x)))
   Cp <- sapply(g, sapply, function(x) transitivity(x, type='localaverage'))
@@ -177,10 +167,10 @@ graph_attr_perm_diffs <- function(densities, meas.list, auc) {
   }
   return(tmp)
 }
-permute_graph_foreach <- function(perms, densities, resids, grps, atlas, auc) {
+permute_graph_foreach <- function(perms, densities, resids, groups, atlas, auc) {
   i <- NULL
-  res.perm <- foreach(i=seq_len(dim(perms)[1L]), .combine='rbind') %dopar% {
-    g <- make_graphs_perm(densities, resids, perms[i, ], grps)
+  res.perm <- foreach(i=seq_len(nrow(perms)), .combine='rbind') %dopar% {
+    g <- make_graphs_perm(densities, resids, perms[i, ], groups)
     meas.list <- graph_attr_perm(g, densities, atlas)
     graph_attr_perm_diffs(densities, meas.list, auc)
   }
@@ -193,24 +183,24 @@ vertex_attr_perm <- function(measure, g, densities) {
     degree=lapply(g, function(x) t(sapply(x, degree))),
     E.nodal=lapply(g, function(x) t(sapply(x, efficiency, 'nodal'))),
     ev.cent=lapply(g, function(x) t(sapply(x, function(y) centr_eigen(y)$vector))),
-    knn=lapply(g, function(x) t(sapply(x, function(y) knn(y)$knn))),
-    transitivity=lapply(g, function(x) t(sapply(x, transitivity, type='local', isolates='zero'))),
+    knn=lapply(g, function(x) t(sapply(x, function(y) graph.knn(y)$knn))),
+    transitivity=lapply(g, function(x) t(sapply(x, transitivity,type='local', isolates='zero'))),
     lapply(g, function(x) t(sapply(x, function(y) centr_betw(y)$res))))
 }
-permute_vertex_foreach <- function(perms, densities, resids, grps, measure, diffFun) {
+permute_vertex_foreach <- function(perms, densities, resids, groups, measure, diffFun) {
   i <- NULL
-  res.perm <- foreach(i=seq_len(dim(perms)[1L]), .combine='rbind') %dopar% {
-    g <- make_graphs_perm(densities, resids, perms[i, ], grps)
+  res.perm <- foreach(i=seq_len(nrow(perms)), .combine='rbind') %dopar% {
+    g <- make_graphs_perm(densities, resids, perms[i, ], groups)
     meas.list <- vertex_attr_perm(measure, g, densities)
     diffFun(densities, meas.list)
   }
 }
 
 # Other-level
-permute_other_foreach <- function(perms, densities, resids, grps, .function) {
+permute_other_foreach <- function(perms, densities, resids, groups, .function) {
   i <- NULL
-  res.perm <- foreach(i=seq_len(dim(perms)[1L]), .combine='rbind') %dopar% {
-    g <- make_graphs_perm(densities, resids, perms[i, ], grps)
+  res.perm <- foreach(i=seq_len(nrow(perms)), .combine='rbind') %dopar% {
+    g <- make_graphs_perm(densities, resids, perms[i, ], groups)
     .function(g, densities)
   }
 }
@@ -221,27 +211,33 @@ permute_other_foreach <- function(perms, densities, resids, grps, .function) {
 
 #' Print a summary from a permutation analysis
 #'
-#' @param object,x A \code{brainGraph_permute} object (output by
+#' @param object A \code{brainGraph_permute} object (output by
 #'   \code{\link{brainGraph_permute}}).
 #' @param p.sig Character string specifying which p-value to use for displaying
 #'   significant results (default: \code{p})
 #' @param ... Unused
 #' @inheritParams GLM
 #' @export
+#' @method summary brainGraph_permute
 #' @rdname brainGraph_permute
 
 summary.brainGraph_permute <- function(object, measure=NULL,
                                        alternative=c('two.sided', 'less', 'greater'),
                                        alpha=0.05, p.sig=c('p', 'p.fdr'), ...) {
   perm.diff <- p <- N <- p.fdr <- region <- obs.diff <- NULL
-  gID <- getOption('bg.group')
-  if (object$level == 'other') {  # Hack to figure out which level it is when level="other"
-    object$level <- if (dim(object$DT)[2L] > 8) 'vertex' else 'graph'
-  }
 
   permDT <- copy(object$DT)
-  g <- with(object, make_graphs_perm(densities, resids, seq_len(nobs(resids)),
-                                     resids$resids.all[, as.numeric(get(gID))]))
+  g <- with(object, make_graphs_perm(densities, resids, 1:nrow(resids$resids.all),
+                                     resids$resids.all[, as.numeric(Group)]))
+  # OTHER
+  #-------------------------------------
+  if (object$level == 'other') {  # Hack to figure out which level it is when level="other"
+    if (ncol(permDT) > 8) {
+      object$level <- 'vertex'
+    } else {
+      object$level <- 'graph'
+    }
+  }
 
   # VERTEX-LEVEL
   #-------------------------------------
@@ -264,7 +260,7 @@ summary.brainGraph_permute <- function(object, measure=NULL,
                          g1=c(obs[[1]]),
                          g2=c(obs[[2]]),
                          key='densities')
-    setnames(sum.dt, c('g1', 'g2'), paste0(measure, '.', object$Group))
+    setnames(sum.dt, c('g1', 'g2'), paste0(measure, '.', object$groups))
     obs <- melt(obsDT, id.vars='densities', variable.name='region', value.name='obs.diff')
     sum.dt <- merge(sum.dt, obs, by=c('densities', 'region'))
     permDT <- melt(permDT, id.vars='densities', variable.name='region', value.name=measure)
@@ -279,7 +275,7 @@ summary.brainGraph_permute <- function(object, measure=NULL,
     stopifnot(measure %in% names(permDT))
     permDT[, region := 'graph']
     if (measure %in% c('asymm', 'assortativity.lobe')) {
-      g <- lapply(g, lapply, make_brainGraph, object$atlas, type='random')
+      g <- lapply(g, lapply, make_brainGraph, object$atlas, rand=TRUE)
     }
     meas.list <- with(object, graph_attr_perm(g, densities, atlas))
 
@@ -287,22 +283,23 @@ summary.brainGraph_permute <- function(object, measure=NULL,
     if (isTRUE(object$auc)) {
       obs <- apply(obs, 2, function(y) sum(diff(object$densities) * (head(y, -1) + tail(y, -1))) / 2)
       sum.dt <- data.table(densities=1, region='graph')
-      sum.dt[, (paste0(measure, '.', object$Group)) := as.list(obs)]
+      sum.dt[, (paste0(measure, '.', object$groups)) := as.list(obs)]
       sum.dt[, obs.diff := object$obs.diff[[measure]]]
       sum.dt[, perm.diff := permDT[, mean(get(measure))]]
+
       permDT[, densities := 1]
 
     } else {
       sum.dt <- data.table(densities=object$densities, region='graph')
-      for (i in seq_along(object$Group)) {
-        sum.dt[, paste0(measure, '.', object$Group[i]) := obs[, i]]
+      for (i in seq_along(object$groups)) {
+        sum.dt[, paste0(measure, '.', object$groups[i]) := obs[, i]]
       }
       sum.dt[, obs.diff := object$obs.diff[[measure]]]
       sum.dt[, perm.diff := permDT[, mean(get(measure)), by=list(densities, region)]$V1]
     }
   }
-  result.dt <- merge(permDT[, c('densities', 'region', measure), with=FALSE],
-                     sum.dt[, c('densities', 'region', 'obs.diff'), with=FALSE],
+  result.dt <- merge(permDT[, c('densities', 'region', measure), with=F],
+                     sum.dt[, c('densities', 'region', 'obs.diff'), with=F],
                      by=c('densities', 'region'))
 
   alt <- match.arg(alternative)
@@ -320,7 +317,7 @@ summary.brainGraph_permute <- function(object, measure=NULL,
   result.dt <- result.dt[, .SD[1], by=key(result.dt)]
   sum.dt <- merge(sum.dt, result.dt[, !c(measure, 'obs.diff'), with=F], by=key(result.dt))
   setcolorder(sum.dt,
-              c('densities', 'region', paste0(measure, '.', object$Group), 'obs.diff',
+              c('densities', 'region', paste0(measure, '.', object$groups), 'obs.diff',
                 'ci.low', 'ci.high', 'perm.diff', 'p'))
   if (!isTRUE(object$auc)) {
     if (object$level == 'graph') {
@@ -331,16 +328,25 @@ summary.brainGraph_permute <- function(object, measure=NULL,
   }
 
   meas.full <- switch(measure,
-      degree='Degree', knn='K-nearest neighbor degree', mod='Modularity',
-      E.global='Global efficiency', E.global.wt='Global efficiency (weighted)',
-      E.nodal='Nodal efficiency', Cp='Clustering coefficient', Lp='Characteristic path length',
-      assort='Degree assortativity', assort.lobe='Lobe assortativity',
-      btwn.cent='Betweenness centrality', ev.cent='Eigenvector centrality',
-      asymm='Edge asymmetry', vulnerability='Vulnerability', transitivity='Local transitivity')
+                      mod='Modularity',
+                      E.global='Global efficiency',
+                      E.global.wt='Global efficiency (weighted)',
+                      Cp='Clustering coefficient',
+                      Lp='Characteristic path length',
+                      assort='Degree assortativity',
+                      assort.lobe='Lobe assortativity',
+                      asymm='Edge asymmetry',
+                      btwn.cent='Betweenness centrality',
+                      vulnerability='Vulnerability',
+                      degree='Degree',
+                      E.nodal='Nodal efficiency',
+                      ev.cent='Eigenvector centrality',
+                      knn='K-nearest neighbor degree',
+                      transitivity='Local transitivity')
 
   p.sig <- match.arg(p.sig)
   perm.sum <- with(object, list(auc=auc, N=N, level=level, densities=densities,
-                                DT.sum=sum.dt, meas.full=meas.full, Group=Group,
+                                DT.sum=sum.dt, meas.full=meas.full, groups=groups,
                                 alt=alt, alpha=alpha, p.sig=p.sig))
   class(perm.sum) <- c('summary.brainGraph_permute', class(perm.sum))
   perm.sum
@@ -350,18 +356,20 @@ summary.brainGraph_permute <- function(object, measure=NULL,
 #' @method print summary.brainGraph_permute
 
 print.summary.brainGraph_permute <- function(x, ...) {
-  print_title_summary('Permutation analysis')
+  message('\nPermutation analysis\n', rep('-', getOption('width') / 2))
   cat('# of permutations:', prettyNum(x$N, ','), '\n')
   cat('Level: ', x$level, '\n')
   cat('Graph metric: ', x$meas.full, '\n')
   if (isTRUE(x$auc)) cat('Area-under-the-curve (AUC) calculated across', length(x$densities), 'densities:\n', x$densities, '\n')
 
-  symb <- switch(x$alt, two.sided='!=', greater='>', less='<')
-  alt <- sprintf('%s - %s %s 0', x$Group[1], x$Group[2], symb)
+  alt <- switch(x$alt,
+                two.sided=with(x, sprintf('%s - %s != 0', groups[1], groups[2])),
+                greater=with(x, sprintf('%s - %s > 0', groups[1], groups[2])),
+                less=with(x, sprintf('%s - %s < 0', groups[1], groups[2])))
   cat('Alternative hypothesis: ', alt, '\n')
   cat('Alpha: ', x$alpha, '\n\n')
-  if (with(x, dim(DT.sum[get(p.sig) < alpha])[1L]) == 0) {
-    cat('No significant results!\n')
+  if (with(x, nrow(DT.sum[get(p.sig) < alpha])) == 0) {
+    cat ('No significant results!\n')
   } else {
     with(x, print(DT.sum[get(p.sig) < alpha]))
   }
@@ -370,9 +378,12 @@ print.summary.brainGraph_permute <- function(x, ...) {
 
 #' Plot results from permutation testing
 #'
+#' @param x A \code{brainGraph_permute} object (output by
+#'   \code{\link{brainGraph_permute}}).
 #' @param ptitle Character string specifying a title for the plot (default:
 #'   \code{NULL})
 #' @export
+#' @method plot brainGraph_permute
 #' @return The \code{plot} method returns a \emph{list} of \code{ggplot} objects
 #' @rdname brainGraph_permute
 
@@ -380,7 +391,7 @@ plot.brainGraph_permute <- function(x, measure=NULL,
                                     alternative=c('two.sided', 'less', 'greater'),
                                     alpha=0.05, p.sig=c('p', 'p.fdr'), ptitle=NULL, ...) {
   densities <- Group <- sig <- trend <- yloc <- obs <- mylty <- ci.low <- ci.high <-
-    variable <- value <- reg.num <- region <- perm.diff <- obs.diff <- plot2 <- NULL
+    variable <- value <- reg.num <- region <- perm.diff <- obs.diff <- NULL
   p.sig <- match.arg(p.sig)
   if (x$level == 'graph') {
     if (is.null(measure)) measure <- 'mod'
@@ -391,17 +402,15 @@ plot.brainGraph_permute <- function(x, measure=NULL,
   perm.sum <- summary(x, measure=measure, alternative=alternative, alpha=alpha)
   sum.dt <- perm.sum$DT.sum
   if (is.null(ptitle)) ptitle <- perm.sum$meas.full
-  ylabel2 <- sprintf('Observed and permutation difference (%s - %s)', x$Group[1], x$Group[2])
+  ylabel2 <- sprintf('Observed and permutation difference (%s - %s)', x$groups[1], x$groups[2])
 
   # GRAPH LEVEL
   #-------------------------------------
   if (x$level == 'graph') {
-    plot.dt <- melt(sum.dt, id.vars=setdiff(names(sum.dt), paste0(measure, '.', x$Group)),
+    plot.dt <- melt(sum.dt, id.vars=setdiff(names(sum.dt), paste0(measure, '.', x$groups)),
                     variable.name='Group', value.name='obs')
-    plot.dt[, Group := factor(Group, labels=x$Group)]
-    idvars <- c('densities', 'region', 'p', 'Group', 'obs')
-    if (!isTRUE(x$auc)) idvars <- c(idvars, 'p.fdr')
-    plot.dt <- melt(plot.dt, id.vars=idvars)
+    plot.dt[, Group := factor(Group, labels=x$groups)]
+    plot.dt <- melt(plot.dt, id.vars=c('densities', 'region', 'p', 'p.fdr', 'Group', 'obs'))
     plot.dt[, c('sig', 'trend') := '']
     plot.dt[get(p.sig) < alpha, sig := '*']
     plot.dt[get(p.sig) >= alpha & get(p.sig) < 2 * alpha, trend := '*']
@@ -445,7 +454,7 @@ plot.brainGraph_permute <- function(x, measure=NULL,
   # VERTEX LEVEL
   #-------------------------------------
   } else {
-    if (dim(sum.dt[get(p.sig) < alpha])[1L] == 0) stop('No significant results!')
+    if (nrow(sum.dt[get(p.sig) < alpha]) == 0) stop('No significant results!')
     plot.dt <- droplevels(sum.dt[get(p.sig) < alpha])
     plot.dt[, reg.num := seq_len(.N), by=densities]
     p <- ggplot(plot.dt[get(p.sig) < alpha], aes(x=region))
@@ -457,6 +466,7 @@ plot.brainGraph_permute <- function(x, measure=NULL,
       facet_wrap(~ densities, scales='free') +
       labs(title=ptitle, y=ylabel2, x='Region') +
       theme(plot.title=element_text(hjust=0.5, face='bold'))
+    plot2 <- NULL
   }
   return(list(plot1, plot2))
 }

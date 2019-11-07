@@ -5,25 +5,23 @@
 \title{Calculate graph global, local, or nodal efficiency}
 \usage{
 efficiency(g, type = c("local", "nodal", "global"), weights = NULL,
-  use.parallel = TRUE, A = NULL, D = NULL)
+  use.parallel = TRUE, A = NULL)
 }
 \arguments{
 \item{g}{An \code{igraph} graph object}
 
 \item{type}{Character string; either \code{local}, \code{nodal}, or
-\code{global}. Default: \code{local}}
+\code{global} (default: \code{local})}
 
 \item{weights}{Numeric vector of edge weights; if \code{NULL} (the default),
 and if the graph has edge attribute \code{weight}, then that will be used.
 To avoid using weights, this should be \code{NA}.}
 
-\item{use.parallel}{Logical indicating whether or not to use \code{foreach}.
-Default: \code{TRUE}}
+\item{use.parallel}{Logical indicating whether or not to use \code{foreach}
+(default: \code{TRUE})}
 
-\item{A}{Numeric matrix; the adjacency matrix of the input graph. Default:
-\code{NULL}}
-
-\item{D}{Numeric matrix; the graph's \dQuote{distance matrix}}
+\item{A}{Numeric matrix; the (weighted or unweighted) adjacency matrix of the
+input graph (default: \code{NULL})}
 }
 \value{
 A numeric vector of the efficiencies for each vertex of the graph
@@ -50,13 +48,11 @@ where \eqn{d_{ij}} is the shortest path length between vertices \emph{i} and
 efficiencies.
 }
 \references{
-Latora, V. and Marchiori, M. (2001) Efficient behavior of
-  small-world networks. \emph{Phys Rev Lett}, \bold{87.19}, 198701.
-  \url{https://dx.doi.org/10.1103/PhysRevLett.87.198701}
+Latora V., Marchiori M. (2001) \emph{Efficient behavior of
+  small-world networks}. Phys Rev Lett, 87.19:198701.
 
-Latora, V. and Marchiori, M. (2003) Economic small-world
-  behavior in weighted networks. \emph{Eur Phys J B}, \bold{32}, 249--263.
-  \url{https://dx.doi.org/10.1140/epjb/e2003-00095-5}
+Latora V., Marchiori M. (2003) \emph{Economic small-world
+  behavior in weighted networks}. Eur Phys J B, 32:249-263.
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}

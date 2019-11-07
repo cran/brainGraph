@@ -47,24 +47,20 @@
 #'   (default: \code{TRUE})
 #' @param int Logical indicating whether or not to include an interaction of the
 #'   mediator and treatment (default: \code{FALSE})
-#' @param .progress Logical indicating whether to print a progress bar. Default:
-#'   \code{getOption('bg.progress')}
 #' @param ... Other arguments passed to \code{\link{brainGraph_GLM_design}}
 #'   (e.g., \code{binarize}) (unused in the \code{summary} method)
 #' @inheritParams GLM
 #' @export
 #' @importFrom RcppEigen fastLmPure
-#' @importFrom foreach getDoParRegistered
-#' @importFrom doParallel registerDoParallel
 #'
 #' @return An object of class \code{bg_mediate} with elements:
 #'   \item{level}{Either \code{graph} or \code{vertex}.}
-#'   \item{removed.subs}{A character vector of Study.ID's removed due to
-#'     incomplete data}
+#'   \item{removed}{A character vector of Study.ID's removed due to incomplete
+#'     data}
 #'   \item{X.m, X.y}{Design matrices for the model with the mediator as the
 #'     outcome variable (\code{X.m}) and for the model with the mediator as an
 #'     additional predictor (\code{X.y})}
-#'   \item{y.m, y.y}{Outcome variables for the associated design matrices above.
+#'   \item{y.m, y.y}{Outomce variables for the associated design matrices above.
 #'     \code{y.m} will be a matrix of size \emph{# subj. X # regions}}
 #'   \item{res.obs}{A \code{data.table} of the observed values of the point
 #'     estimates.}
@@ -92,122 +88,120 @@
 #'   \item{sims}{Integer; the number of bootstrap replications.}
 #'   \item{covar.names}{The pre-treatment covariate names.}
 #'
-#' @name Mediation
+#' @name MediationAnalysis
+#' @aliases brainGraph_mediate
 #' @rdname mediation
 #' @family Group analysis functions
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
-#' @references Tingley, D. and Yamamoto, T. and Hirose, K. and Keele, L. and
-#'   Imai, K. (2014) mediation: R package for causal mediation analysis.
-#'   \emph{Journal of Statistical Software}, \bold{59(5)}, 1--38.
-#'   \url{https://dx.doi.org/10.18637/jss.v059.i05}
-#' @references Imai, K. and Keele, L. and Yamamoto, T. (2010) Identification
-#'   inference, and sensitivity analysis for causal mediation effects.
-#'   \emph{Statistical Science}, \bold{25(1)}, 51--71.
-#'   \url{https://dx.doi.org/10.1214/10-STS321}
-#' @references Imai, K. and Keele, L. and Tingley, D. (2010) A general approach
-#'   to causal mediation analysis. \emph{Psychological Methods}, \bold{15(4)},
-#'   309--334. \url{https://dx.doi.org/10.1037/a0020761}
-#' @references Imai, K. and Keele, L. and Tingley, D. and Yamamoto, T. (2011)
-#'   Unpacking the black box of causality: learning about causal mechanisms from
-#'   experimental and observational studies. \emph{American Political Science
-#'   Review}, \bold{105(4)}, 765--789.
-#'   \url{https://dx.doi.org/10.1017/S0003055411000414}
-#' @references Imai, K. and Yamamoto, T. (2013) Identification and sensitivity
-#'   analysis for multiple causal mechanisms: revisiting evidence from framing
-#'   experiments. \emph{Political Analysis}, \bold{21(2)}, 141--171.
-#'   \url{https://dx.doi.org/10.1093/pan/mps040}
+#' @references Tingley D, Yamamoto T, Hirose K, Keele L, Imai K (2014).
+#'   \emph{mediation: R package for causal mediation analysis.} Journal of
+#'   Statistical Software, 59(5):1-38.
+#' @references Imai K, Keele L, Yamamoto T (2010). \emph{Identification,
+#'   inference, and sensitivity analysis for causal mediation effects.}
+#'   Statistical Science, 25(1):51-71.
+#' @references Imai K, Keele L, Tingley D (2010). \emph{A general approach to
+#'   causal mediation analysis.} Psychological Methods, 15(4):309-334.
+#' @references Imai K, Keele L, Tingley D, Yamamoto T (2011). \emph{Unpacking
+#'   the black box of causality: learning about causal mechanisms from
+#'   experimental and observational studies.} American Political Science Review,
+#'   105(4):765-789.
+#' @references Imai K, Yamamoto T (2013). \emph{Identification
+#'   and sensitivity analysis for multiple causal mechanisms: revisiting
+#'   evidence from framing experiments.} Political Analysis, 21(2):141-171.
 #' @examples
 #' \dontrun{
-#' med.EglobWt.FSIQ <- brainGraph_mediate(g[[5]], covars.med, 'E.global.wt',
-#'   'Group', 'FSIQ', covar.names=c('age', 'gender'), N=1e4)
-#' med.strength.FSIQ <- brainGraph_mediate(g[[5]], covars.med, 'strength',
-#'   'Group', 'FSIQ', covar.names=c('age', 'gender'), level='vertex')
+#' med.EglobWt.FSIQ <- brainGraph_mediate(dt.G[threshold == thresholds[5]],
+#'   covars.med, 'E.global.wt', 'Group', 'FSIQ', covar.names=c('age', 'gender'),
+#'   boot=TRUE, N=1e4)
+#' med.strength.FSIQ <-
+#'   brainGraph_mediate(dt.V[threshold == thresholds[5] & region == 'lcACC'],
+#'                      covars.med, 'strength', 'Group', 'FSIQ',
+#'                      covar.names=c('age', 'gender'), N=1e3)
 #' }
 
 brainGraph_mediate <- function(g.list, covars, mediator, treat,
                                outcome, covar.names, level=c('graph', 'vertex'),
                                boot=TRUE, boot.ci.type=c('perc', 'bca'), N=1e3,
                                conf.level=0.95, control.value=0, treat.value=1,
-                               long=TRUE, int=FALSE, .progress=getOption('bg.progress'), ...) {
-  region <- treatintstr <- NULL
-  if (!inherits(g.list, 'brainGraphList')) try(g.list <- as_brainGraphList(g.list))
-  g.list <- g.list[]
+                               long=TRUE, int=FALSE, ...) {
 
-  sID <- getOption('bg.subject_id')
+  Study.ID <- region <- treatintstr <- NULL
   stopifnot(all(c(treat, outcome, covar.names) %in% names(covars)))
-  if (!sID %in% names(covars)) covars[, eval(sID) := as.character(seq_len(nrow(covars)))]
-  covars <- droplevels(covars[, c(sID, treat, covar.names, outcome), with=FALSE])
-  incomp <- covars[!complete.cases(covars), get(sID)]
-  covars <- covars[!get(sID) %in% incomp]
-  setkeyv(covars, sID)
+  if (!'Study.ID' %in% names(covars)) covars$Study.ID <- as.character(seq_len(nrow(covars)))
+  covars <- droplevels(covars[, c('Study.ID', treat, covar.names, outcome), with=F])
+  incomp <- covars[!complete.cases(covars), Study.ID]
+  covars <- covars[!Study.ID %in% incomp]
+  setkey(covars, Study.ID)
 
   level <- match.arg(level)
-  dt.graph <- glm_data_table(g.list, level, mediator)
-  dt.graph <- dt.graph[!get(sID) %in% incomp]
+  if (level == 'graph') {
+    dt.graph <- data.table(Study.ID=vapply(g.list, graph_attr, character(1), 'name'),
+                           graph=vapply(g.list, graph_attr, numeric(1), mediator))
+  } else if (level == 'vertex') {
+    y <- t(vapply(g.list, vertex_attr, numeric(vcount(g.list[[1]])), mediator))
+    dt.graph <- data.table(Study.ID=vapply(g.list, graph_attr, character(1), 'name'))
+    dt.graph <- cbind(dt.graph, y)
+    setnames(dt.graph, 2:ncol(dt.graph), V(g.list[[1]])$name)
+  }
+
+  dt.graph <- dt.graph[!Study.ID %in% incomp]
   DT <- merge(covars, dt.graph, on=key(covars))
   DT[, eval(treat) := as.factor(get(treat))]
   DT.m <- melt(DT, id.vars=names(covars), variable.name='region', value.name=mediator)
 
   t.levels <- DT[, levels(get(treat))]
-  if (all(c(treat.value, control.value) %in% t.levels)) {
+  if (treat.value %in% t.levels & control.value %in% t.levels) {
     cat.0 <- control.value
     cat.1 <- treat.value
   } else {
-    cat.0 <- t.levels[1L]
-    cat.1 <- t.levels[2L]
+    cat.0 <- t.levels[1]
+    cat.1 <- t.levels[2]
   }
 
-  X.m <- brainGraph_GLM_design(DT[, c(treat, covar.names), with=FALSE], ...)
-  n <- dim(X.m)[1L]
+  X.m <- brainGraph_GLM_design(DT[, c(treat, covar.names), with=F], ...)
+  n <- nrow(X.m)
   y.y <- DT[, get(outcome)]
   treatstr <- paste0(treat, cat.1)
   if (isTRUE(int)) treatintstr <- paste0(treatstr, ':', mediator)
 
   # Different across regions
   regions <- DT.m[, levels(region)]
-  X.y <- res_boot <- setNames(vector('list', length(regions)), regions)
-  y.m <- matrix(0, n, length(regions), dimnames=list(DT.m[region == regions[1L], get(sID)], regions))
-  cols <- c(mediator, treat, covar.names)
-  if (!getDoParRegistered()) {
-    cl <- makeCluster(getOption('bg.ncpus'))
-    registerDoParallel(cl)
-  }
-  if (level == 'graph') .progress <- FALSE
-  if (isTRUE(.progress)) progbar <- txtProgressBar(min=0L, max=length(regions), style=3)
+  X.y <- res_boot <- sapply(regions, function(x) NULL)
+  y.m <- matrix(0, nrow=n, ncol=length(regions), dimnames=list(DT.m[region == regions[1], Study.ID], regions))
   for (i in regions) {
     y.m[, i] <- DT.m[region == i, get(mediator)]
     if (isTRUE(int)) {
-      X.y[[i]] <- brainGraph_GLM_design(DT.m[region == i, cols, with=FALSE], int=c(treat, mediator), ...)
+      X.y[[i]] <- brainGraph_GLM_design(DT.m[region == i, c(mediator, treat, covar.names), with=F],
+                                        int=c(treat, mediator), ...)
     } else {
-      X.y[[i]] <- brainGraph_GLM_design(DT.m[region == i, cols, with=FALSE], ...)
+      X.y[[i]] <- brainGraph_GLM_design(DT.m[region == i, c(mediator, treat, covar.names), with=F], ...)
     }
     res_boot[[i]] <- boot_mediate(N, n, X.m, y.m[, i], treat, cat.1, X.y[[i]],
                                   y.y, mediator, treatstr, int, treatintstr)
-    if (isTRUE(.progress)) setTxtProgressBar(progbar, getTxtProgressBar(progbar) + 1L)
   }
-  if (isTRUE(.progress)) close(progbar)
-  res_boot <- rbindlist(res_boot, idcol='region')
+  res_boot <- rbindlist(res_boot, idcol=TRUE)
+  setnames(res_boot, '.id', 'region')
   res_obs <- res_boot[, .SD[.N], by=region]
-  res_p <- res_boot[, lapply(.SD, function(x) pval(x[seq_len(N)], x[N + 1L])), by=region]
+  res_p <- res_boot[, lapply(.SD, function(x) pval(x[1:N], x[N + 1])), by=region]
   res_boot <- res_boot[, .SD[-.N], by=region]
 
   low <- (1 - conf.level) / 2
   high <- 1 - low
   boot.ci.type <- match.arg(boot.ci.type)
-  if (isTRUE(boot) && boot.ci.type == 'perc') {
+  if (isTRUE(boot) & boot.ci.type == 'perc') {
     res_ci <- res_boot[, lapply(.SD, quantile, c(low, high), na.rm=TRUE), by=region]
   } else {
     res_ci <- res_boot[, lapply(.SD, BC.CI, low, high), by=region]
   }
 
   if (!isTRUE(long)) res_boot <- NULL
-  out <- list(level=level, removed.subs=incomp, X.m=X.m, X.y=X.y, y.m=y.m, y.y=y.y,
+
+  out <- list(level=level, removed=incomp, X.m=X.m, X.y=X.y, y.m=y.m, y.y=y.y,
               res.obs=res_obs, res.ci=res_ci, res.p=res_p,
               boot=boot, boot.ci.type=boot.ci.type, res.boot=res_boot,
               treat=treat, mediator=mediator, outcome=outcome, covariates=NULL, INT=int,
               conf.level=conf.level, control.value=cat.0, treat.value=cat.1,
               nobs=n, sims=N, covar.names=covar.names)
-  out$atlas <- guess_atlas(g.list[[1L]])
   class(out) <- c('bg_mediate', class(out))
   return(out)
 }
@@ -217,16 +211,15 @@ boot_mediate <- function(N, n, X.m, y.m, treat, cat.1, X.y,
   b <- tau <- d1 <- d0 <- z1 <- z0 <- n0 <- n1 <- d.avg <- z.avg <- n.avg <- NULL
 
   # Randomization/resampling matrix
-  A <- matrix(rep(seq_len(n), N), byrow=TRUE, nrow=N)
+  A <- matrix(rep(1:n, N), byrow=TRUE, nrow=N)
   index <- t(apply(A, 1, sample, replace=TRUE))
-  index <- rbind(index, seq_len(n))
+  index <- rbind(index, 1:n)
 
   # Loop through the resamples
   res <- foreach(b=seq_len(N + 1), .combine='rbind') %dopar% {
-    neworder <- index[b, ]
 
     # Mediator predictions
-    est.m <- fastLmPure(X.m[neworder, ], y.m[neworder], method=2)
+    est.m <- fastLmPure(X.m[index[b, ], ], y.m[index[b, ]], method=2)
     error <- rnorm(n, mean=0, sd=est.m$s)
 
     X.m.t <- X.m.c <- X.m
@@ -236,11 +229,16 @@ boot_mediate <- function(N, n, X.m, y.m, treat, cat.1, X.y,
     PredictM0 <- X.m.c %*% est.m$coefficients + error
 
     # Outcome predictions
-    est.y <- fastLmPure(X.y[neworder, ], y.y[neworder], method=2)
+    est.y <- fastLmPure(X.y[index[b, ], ], y.y[index[b, ]], method=2)
     effects.tmp <- matrix(NA, nrow=n, ncol=4)
     for (e in 1:4) { # These calculate d1, d0, z1, z0 (respectively) for each "sim")
       tt <- switch(e, c(1, 1, 1, 0), c(0, 0, 1, 0), c(1, 0, 1, 1), c(1, 0, 0, 0))
       X.y.t <- X.y.c <- X.y
+      #TODO: my replacement of the following 2 lines prob. won't work for #groups > 2
+#      cat.t <- ifelse(tt[1], cat.1, cat.0)
+#      cat.c <- ifelse(tt[2], cat.1, cat.0)
+#      pred.data.t[, treat] <- factor(cat.t, levels=t.levels)
+#      pred.data.c[, treat] <- factor(cat.c, levels=t.levels)
       X.y.t[, treatstr] <- tt[1]
       X.y.c[, treatstr] <- tt[2]
       X.y.t[, mediator] <- PredictM1 * tt[3] + PredictM0 * (1 - tt[3])  #PredictMt
@@ -269,7 +267,7 @@ boot_mediate <- function(N, n, X.m, y.m, treat, cat.1, X.y,
 }
 
 pval <- function(x, xhat) {
-  out <- if (xhat == 0) 1 else 2 * min(sum(x > 0), sum(x < 0)) / length(x)
+  out <- ifelse(xhat == 0, 1, 2 * min(sum(x > 0), sum(x < 0)) / length(x))
   return(min(out, 1))
 }
 
@@ -282,7 +280,7 @@ BC.CI <- function(theta, low, high) {
   a <- top / under
   lower.inv <-  pnorm(z + (z + qnorm(low)) / (1 - a * (z + qnorm(low))))
   lower2 <- lower <- quantile(theta, lower.inv)
-  upper.inv <-  pnorm(z + (z + qnorm(high)) / (1 - a * (z + qnorm(high))))
+  upper.inv <-  pnorm(z + (z + qnorm(high))/(1 - a * (z + qnorm(high))))
   upper2 <- upper <- quantile(theta, upper.inv)
   return(c(lower, upper))
 }
@@ -300,11 +298,16 @@ BC.CI <- function(theta, low, high) {
 #' @param region Character string specifying which region's results to
 #'   summarize; only relevant if \code{level='vertex'} (default: \code{NULL})
 #' @export
+#' @method summary bg_mediate
 #' @rdname mediation
 
 summary.bg_mediate <- function(object, mediate=FALSE, region=NULL, digits=max(3L, getOption('digits') - 2L), ...) {
   stopifnot(inherits(object, 'bg_mediate'))
-  Mediator <- treat <- Outcome <- NULL
+  ci.low0.acme <- d0.ci <- ci.high0.acme <- ci.low0.ade <- z0.ci <- ci.high0.ade <- ci.low.tot <-
+    tau.ci <- ci.high.tot <- ci.low0.prop <- n0.ci <- ci.high0.prop <- ci.low1.acme <- d1.ci <-
+    ci.high1.acme <- ci.low1.ade <- z1.ci <- ci.high1.ade <- ci.low1.prop <- n1.ci <- ci.high1.prop <-
+    ci.low.avg.acme <- d.avg.ci <- ci.high.avg.acme <- ci.low.avg.ade <- z.avg.ci <- ci.high.avg.ade <-
+    ci.low.avg.prop <- n.avg.ci <- ci.high.avg.prop <- Mediator <- treat <- Outcome <- NULL
 
   DT.obs <- copy(object$res.obs)
   DT.ci <- copy(object$res.ci)
@@ -312,42 +315,68 @@ summary.bg_mediate <- function(object, mediate=FALSE, region=NULL, digits=max(3L
   setnames(DT.ci, c('region', paste0(names(DT.ci)[-1], '.ci')))
   setnames(DT.p, c('region', paste0(names(DT.p)[-1], '.p')))
   DT.all <- merge(merge(DT.obs, DT.p, by='region'), DT.ci, by='region')
-  DT.all[, c('Mediator', 'treat', 'Outcome') := with(object, mediator, treat, outcome)]
+  setnames(DT.all,
+           c('d0', 'd0.p', 'z0', 'z0.p', 'tau', 'tau.p', 'n0', 'n0.p'),
+           c('b0.acme', 'p0.acme', 'b0.ade', 'p0.ade', 'b.tot', 'p.tot', 'b0.prop', 'p0.prop'))
+  DT.all[, ci.low0.acme := .SD[1, d0.ci], by=region]
+  DT.all[, ci.high0.acme := .SD[2, d0.ci], by=region]
+  DT.all[, ci.low0.ade := .SD[1, z0.ci], by=region]
+  DT.all[, ci.high0.ade := .SD[2, z0.ci], by=region]
+  DT.all[, ci.low0.prop := .SD[1, n0.ci], by=region]
+  DT.all[, ci.high0.prop := .SD[2, n0.ci], by=region]
+  DT.all[, ci.low.tot := .SD[1, tau.ci], by=region]
+  DT.all[, ci.high.tot := .SD[2, tau.ci], by=region]
+  DT.all[, Mediator := object$mediator]
+  DT.all[, treat := object$treat]
+  DT.all[, Outcome := object$outcome]
 
-  change <- matrix(c('d0', 'd0.p', 'z0', 'z0.p', 'tau', 'tau.p', 'n0', 'n0.p',
-                     'b0.acme', 'p0.acme', 'b0.ade', 'p0.ade', 'b.tot', 'p.tot', 'b0.prop', 'p0.prop'),
-                   ncol=2)
-  setnames(DT.all, change[, 1], change[, 2])
-  change_ci <- change[seq.int(1, 7, by=2), ]
-  change_ci <- cbind(paste0(change_ci[, 1], '.ci'),
-                     sub('[bdnz]([01]?)\\.', 'ci.low\\1.', change_ci[, 2]))
-  change_ci <- cbind(change_ci, sub('low', 'high', change_ci[, 2]))
-  DT.all[, eval(change_ci[, 2]) := lapply(.SD, function(x) x[1]), by=region, .SDcols=change_ci[, 1]]
-  DT.all[, eval(change_ci[, 3]) := lapply(.SD, function(x) x[2]), by=region, .SDcols=change_ci[, 1]]
-
-  mainnames <- c('Mediator', 'treat', 'Outcome', 'region')
-  acme <- c('b0.acme', 'ci.low0.acme', 'ci.high0.acme', 'p0.acme')
-  total <- sub('0.acme', '.tot', acme)
   # Different behavior if mediator-treatment interaction
   if (isTRUE(object$INT)) {
-    change1 <- sub('0', '1', change)[-c(5, 6), ]
-    change1 <- rbind(change1, sub('1', '.avg', change1))
-    setnames(DT.all, change1[, 1], change1[, 2])
-    change_ci1 <- sub('0', '1', change_ci)[-3, ]
-    change_ci1 <- rbind(change_ci1, sub('1', '.avg', change_ci1))
-    DT.all[, eval(change_ci1[, 2]) := lapply(.SD, function(x) x[1]), by=region, .SDcols=change_ci1[, 1]]
-    DT.all[, eval(change_ci1[, 3]) := lapply(.SD, function(x) x[2]), by=region, .SDcols=change_ci1[, 1]]
-    acme <- c(acme, sub('0', '1', acme), sub('0', '.avg', acme))
+    setnames(DT.all,
+             c('d1', 'd1.p', 'd.avg', 'd.avg.p', 'z1', 'z1.p', 'z.avg', 'z.avg.p', 'n1', 'n1.p', 'n.avg', 'n.avg.p'),
+             c('b1.acme', 'p1.acme', 'b.avg.acme', 'p.avg.acme', 'b1.ade', 'p1.ade', 'b.avg.ade', 'p.avg.ade', 'b1.prop', 'p1.prop', 'b.avg.prop', 'p.avg.prop'))
+    DT.all[, ci.low1.acme := .SD[1, d1.ci], by=region]
+    DT.all[, ci.high1.acme := .SD[2, d1.ci], by=region]
+    DT.all[, ci.low1.ade := .SD[1, z1.ci], by=region]
+    DT.all[, ci.high1.ade := .SD[2, z1.ci], by=region]
+    DT.all[, ci.low1.prop := .SD[1, n1.ci], by=region]
+    DT.all[, ci.high1.prop := .SD[2, n1.ci], by=region]
+    DT.all[, ci.low.avg.acme := .SD[1, d1.ci], by=region]
+    DT.all[, ci.high.avg.acme := .SD[2, d1.ci], by=region]
+    DT.all[, ci.low.avg.ade := .SD[1, z1.ci], by=region]
+    DT.all[, ci.high.avg.ade := .SD[2, z1.ci], by=region]
+    DT.all[, ci.low.avg.prop := .SD[1, n1.ci], by=region]
+    DT.all[, ci.high.avg.prop := .SD[2, n1.ci], by=region]
+    DT.all[, grep('.*.ci', names(DT.all)) := NULL]
+    setcolorder(DT.all, c('Mediator', 'treat', 'Outcome', 'region',
+                          'b0.acme', 'ci.low0.acme', 'ci.high0.acme', 'p0.acme',
+                          'b1.acme', 'ci.low1.acme', 'ci.high1.acme', 'p1.acme',
+                          'b.avg.acme', 'ci.low.avg.acme', 'ci.high.avg.acme', 'p.avg.acme',
+                          'b0.ade', 'ci.low0.ade', 'ci.high0.ade', 'p0.ade',
+                          'b1.ade', 'ci.low1.ade', 'ci.high1.ade', 'p1.ade',
+                          'b.avg.ade', 'ci.low.avg.ade', 'ci.high.avg.ade', 'p.avg.ade',
+                          'b.tot', 'ci.low.tot', 'ci.high.tot', 'p.tot',
+                          'b0.prop', 'ci.low0.prop', 'ci.high0.prop', 'p0.prop',
+                          'b1.prop', 'ci.low1.prop', 'ci.high1.prop', 'p1.prop',
+                          'b.avg.prop', 'ci.low.avg.prop', 'ci.high.avg.prop', 'p.avg.prop'))
 
   } else {
-    DT.all[, grep('1|avg', names(DT.all)) := NULL]
+    DT.all[, grep('1', names(DT.all)) := NULL]
+    DT.all[, grep('avg', names(DT.all)) := NULL]
+    DT.all[, grep('.*.ci', names(DT.all)) := NULL]
+    setcolorder(DT.all, c('Mediator', 'treat', 'Outcome', 'region',
+                          'b0.acme', 'ci.low0.acme', 'ci.high0.acme', 'p0.acme',
+                          'b0.ade', 'ci.low0.ade', 'ci.high0.ade', 'p0.ade',
+                          'b.tot', 'ci.low.tot', 'ci.high.tot', 'p.tot',
+                          'b0.prop', 'ci.low0.prop', 'ci.high0.prop', 'p0.prop'))
   }
-  DT.all[, grep('.*.ci', names(DT.all)) := NULL]
-  setcolorder(DT.all, c(mainnames, acme, sub('acme', 'ade', acme), total, sub('acme', 'prop', acme)))
   DT.all <- DT.all[, .SD[1], keyby=region]
   DT.all[, region := as.factor(region)]
 
-  object <- c(object, list(DT.sum=DT.all, region=region, digits=digits, mediate=mediate))
+  object$DT.sum <- DT.all
+  object$region <- region
+  object$digits <- digits
+  object$mediate <- mediate
   class(object) <- c('summary.bg_mediate', class(object))
   return(object)
 }
@@ -358,29 +387,26 @@ summary.bg_mediate <- function(object, mediate=FALSE, region=NULL, digits=max(3L
 
 print.summary.bg_mediate <- function(x, ...) {
   region <- NULL
-  width <- getOption('width')
-  print_title_summary(paste0(simpleCap(x$level), '-level mediation results'))
+  title <- paste('brainGraph mediation results')
+  message('\n', title, '\n', rep('-', getOption('width') / 2))
   cat('# of observations: ', x$nobs, '\n')
+  cat('Level: ', x$level, '\n')
+  cat('Mediator: ', x$mediator, '\n')
+  cat('Treatment: ', x$treat, '\n')
+  cat('\tControl value: ', x$control.value, '\n')
+  cat('\tTreatment value: ', x$treat.value, '\n')
+  cat('Outcome: ', x$outcome, '\n')
+  cov.df <- data.frame(x$covar.names)
+  dimnames(cov.df)[[2]] <- ''
+  cat('Pre-treatment covariates:\n ')
+  print(cov.df, right=FALSE)
 
-  # Print a table of the model variables
-  message('\n', 'Variables', '\n', rep('-', width / 4))
-  df <- data.frame(A=c('  Mediator:', ' Treatment:', '    Control condition:',
-                       '  Treatment condition:', '   Outcome:'),
-                   B=c(x$mediator, x$treat, x$control.value, x$treat.value, x$outcome))
-  nc <- length(x$covar.names)
-  cov.df <- data.frame(A=c('', 'Covariates:', rep('', nc - 1)),
-                       B=c('', x$covar.names))
-  df <- rbind(df, cov.df)
-  dimnames(df)[[2]] <- rep('', 2)
-  print(df, right=FALSE, row.names=FALSE)
   cat('\nTreatment-mediator interaction? ', x$INT, '\n\n')
-
-  print_subs_summary(x)
 
   if (isTRUE(x$boot)) {
     low <- (1 - x$conf.level) / 2
     high <- 1 - low
-    message('\n', 'Bootstrapping', '\n', rep('-', width / 4))
+    message('\n', 'Bootstrapping', '\n', rep('-', 30))
     ci <- switch(x$boot.ci.type,
                  perc='Percentile bootstrap',
                  bca='Bias-corrected accelerated')
@@ -392,27 +418,25 @@ print.summary.bg_mediate <- function(x, ...) {
 
   if (isTRUE(x$mediate)) {
     if (!requireNamespace('mediation', quietly=TRUE)) {
-      warning('You need to install "mediation" for their "summary" output.')
-      return(invisible(x))
+      warning("You need to install the 'mediation' package.")
     } else {
       requireNamespace('mediation')
+      message('Mediation summary for: ', x$region, '\n', rep('-', 30))
+      print(summary(bg_to_mediate(x, region=x$region)))
     }
-    region <- if (is.null(x$region)) x$DT.sum[, levels(region)[1]] else x$region
-    message('Mediation summary for: ', region, '\n', rep('-', width / 4))
-    print(summary(bg_to_mediate(x, region)))
   } else {
     if (is.null(x$region)) {
       regions <- x$DT.sum[, levels(region)]
     } else {
       regions <- x$region
     }
-    message('Mediation statistics', '\n', rep('-', width / 4))
+    message('Mediation statistics', '\n', rep('-', 20))
     print(x$DT.sum[region %in% regions])
   }
   invisible(x)
 }
 
-#' Convert brainGraph results to mediate object
+#' Convert brainGraph results to "mediate" object
 #'
 #' \code{\link{bg_to_mediate}} converts the results into an object of class
 #' \code{\link[mediation]{mediate}}. In \code{brainGraph}, it is only used for

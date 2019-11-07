@@ -6,12 +6,10 @@
 \alias{plot.mtpc}
 \title{Multi-threshold permutation correction}
 \usage{
-mtpc(g.list, thresholds, covars, measure, contrasts, con.type = c("t",
-  "f"), outcome = NULL, con.name = NULL, level = c("vertex",
-  "graph"), clust.size = 3L, perm.method = c("freedmanLane",
-  "terBraak", "smith"), part.method = c("beckmann", "guttman",
-  "ridgway"), N = 500L, perms = NULL, alpha = 0.05, res.glm = NULL,
-  long = TRUE, ...)
+mtpc(g.list, thresholds, covars, measure, con.mat, con.type = c("t",
+  "f"), con.name = NULL, level = c("vertex", "graph"),
+  clust.size = 3L, N = 500L, perms = NULL, alpha = 0.05,
+  res.glm = NULL, long = TRUE, ...)
 
 \method{summary}{mtpc}(object, contrast = NULL, digits = max(3L,
   getOption("digits") - 2L), print.head = TRUE, ...)
@@ -21,7 +19,8 @@ mtpc(g.list, thresholds, covars, measure, contrasts, con.type = c("t",
   ...)
 }
 \arguments{
-\item{g.list}{A list of \code{brainGraphList} objects for all thresholds}
+\item{g.list}{A list of lists of \code{igraph} graph objects for all
+thresholds and subjects}
 
 \item{thresholds}{Numeric vector of the thresholds applied to the raw
 connectivity matrices.}
@@ -30,60 +29,54 @@ connectivity matrices.}
 
 \item{measure}{Character string of the graph measure of interest}
 
-\item{contrasts}{Numeric matrix specifying the contrast(s) of interest; if
+\item{con.mat}{Numeric matrix specifying the contrast(s) of interest; if
 only one contrast is desired, you can supply a vector}
 
 \item{con.type}{Character string; either \code{'t'} or \code{'f'} (for t or
 F-statistics). Default: \code{'t'}}
 
-\item{outcome}{Character string specifying the name of the outcome variable,
-if it differs from the graph metric (\code{measure})}
-
-\item{con.name}{Character vector of the contrast name(s); if \code{contrasts}
-has row names, those will be used for reporting results}
+\item{con.name}{Character vector of the contrast name(s); if \code{con.mat}
+has row names, those will be used for reporting results (default:
+\code{NULL})}
 
 \item{level}{Character string; either \code{vertex} (default) or
 \code{graph}}
 
-\item{clust.size}{Integer indicating the size of \dQuote{clusters} (i.e.,
+\item{clust.size}{Integer indicating the size of "clusters" (i.e.,
 consecutive thresholds for which the observed statistic exceeds the null)
 (default: \code{3L})}
 
-\item{perm.method}{Character string indicating the permutation method.
-Default: \code{'freedmanLane'}}
+\item{N}{Integer; number of permutations to create (default: 5e3)}
 
-\item{part.method}{Character string; the method of partitioning the design
-matrix into covariates of interest and nuisance. Default: \code{beckmann}}
+\item{perms}{Matrix of permutations, if you would like to provide your own
+(default: \code{NULL})}
 
-\item{N}{Integer; number of permutations to create. Default: \code{5e3}}
-
-\item{perms}{Matrix of permutations, if you would like to provide your own.
-Default: \code{NULL}}
-
-\item{alpha}{Numeric; the significance level. Default: 0.05}
+\item{alpha}{Numeric; the significance level (default: 0.05)}
 
 \item{res.glm}{A list of \code{bg_GLM} objects, as output by a previous run
 of \code{mtpc}. Useful if you want to change the cluster size without
 re-running all of the GLM's and permutations (default: \code{NULL})}
 
 \item{long}{Logical indicating whether or not to return all permutation
-results. Default: \code{FALSE}}
+results (default: \code{FALSE})}
 
 \item{...}{Other arguments passed to \code{\link{brainGraph_GLM}} and/or
 \code{\link{brainGraph_GLM_design}}}
 
-\item{object, x}{A \code{mtpc} object}
+\item{object}{A \code{mtpc} object}
 
 \item{contrast}{Integer specifying the contrast to plot/summarize; defaults
 to showing results for all contrasts}
 
-\item{digits}{Integer specifying the number of digits to display for P-values}
+\item{digits}{Integer specifying the number of digits to display for p-values}
 
 \item{print.head}{Logical indicating whether or not to print only the first
 and last 5 rows of the statistics tables (default: \code{TRUE})}
 
+\item{x}{A \code{mtpc} object}
+
 \item{region}{Character string specifying which region's results to
-plot; only relevant if \code{level='vertex'}. Default: \code{NULL}}
+plot; only relevant if \code{level='vertex'} (default: \code{NULL})}
 
 \item{only.sig.regions}{Logical indicating whether to plot only significant
 regions (default: \code{TRUE})}
@@ -146,7 +139,7 @@ This is a multi-step procedure: (steps 3-4 are the time-consuming steps)
 \dontrun{
 diffs.mtpc <- mtpc(g.list=g.norm, thresholds=thresholds, N=N,
      covars=covars.dti, measure='E.nodal.wt', coding='effects',
-     contrasts=c(0, 0, 0, 0, -2), alt='greater',
+     con.mat=c(0, 0, 0, 0, -2), alt='greater',
      binarize=c('Sex', 'Scanner'), con.name='Group 1 > Group 2')
 sig.regions <- diffs.mtpc$DT[A.mtpc > A.crit]
 }
@@ -159,19 +152,19 @@ ggsave('mtpc.pdf', ml)
 }
 }
 \references{
-Drakesmith, M. and Caeyenberghs, K. and Dutt, A. and Lewis, G. and
-  David, A.S. and Jones, D.K. (2015) Overcoming the effects of false
-  positives and threshold bias in graph theoretical analyses of neuroimaging
-  data. \emph{NeuroImage}, \bold{118}, 313--333.
-  \url{https://dx.doi.org/10.1016/j.neuroimage.2015.05.011}
+Drakesmith M, Caeyenberghs K, Dutt A, Lewis G, David AS, Jones
+  DK (2015). \emph{Overcoming the effects of false positives and threshold
+  bias in graph theoretical analyses of neuroimaging data.} NeuroImage,
+  118:313-333.
 }
 \seealso{
 Other Group analysis functions: \code{\link{Bootstrapping}},
-  \code{\link{GLM}}, \code{\link{Mediation}},
-  \code{\link{NBS}}, \code{\link{brainGraph_permute}}
+  \code{\link{GLM}}, \code{\link{IndividualContributions}},
+  \code{\link{MediationAnalysis}}, \code{\link{NBS}},
+  \code{\link{brainGraph_permute}}
 
-Other GLM functions: \code{\link{GLM design}},
-  \code{\link{GLM fits}}, \code{\link{GLM}}
+Other GLM functions: \code{\link{GLMdesign}},
+  \code{\link{GLMfit}}, \code{\link{GLM}}
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}

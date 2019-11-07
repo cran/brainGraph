@@ -14,7 +14,8 @@
 #'   edge count of the input graph, consisting of the Euclidean distance (in
 #'   \emph{mm}) of each edge
 #'
-#' @name Graph Distances
+#' @name GraphDistances
+#' @aliases edge_spatial_dist
 #' @rdname spatial_dist
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
@@ -36,22 +37,22 @@ edge_spatial_dist <- function(g) {
 #'
 #' @inheritParams edge_spatial_dist
 #' @export
-#' @importFrom Matrix colSums
 #'
 #' @return \code{vertex_spatial_dist} - a named numeric vector with length equal
 #'   to the number of vertices, consisting of the average distance (in
 #'   \emph{mm}) for each vertex
 #'
+#' @aliases vertex_spatial_dist
 #' @rdname spatial_dist
-#' @references Alexander-Bloch, A.F. and Vertes, P.E. and Stidd, R. et al.
-#'   (2013) The anatomical distance of functional connections predicts brain
-#'   network topology in health and schizophrenia. \emph{Cerebral Cortex},
-#'   \bold{23}, 127--138. \url{https://dx.doi.org/10.1093/cercor/bhr388}
+#' @references Alexander-Bloch A.F., Vertes P.E., Stidd R. et al. (2013)
+#'   \emph{The anatomical distance of functional connections predicts brain
+#'   network topology in health and schizophrenia}. Cerebral Cortex, 23:127-138.
 
 vertex_spatial_dist <- function(g) {
+  from <- to <- dist <- NULL
   stopifnot(is_igraph(g), 'dist' %in% edge_attr_names(g))
 
-  A <- as_adj(g, names=FALSE, attr='dist')
-  dists <- colSums(A) / colSums(A != 0)
+  dt.e <- as.data.table(as_data_frame(g))
+  dists <- sapply(V(g)$name, function(x) dt.e[from == x | to == x, mean(dist)])
   return(dists)
 }

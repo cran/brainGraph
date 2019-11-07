@@ -4,13 +4,10 @@
 \alias{centr_lev}
 \title{Calculate a vertex's leverage centrality}
 \usage{
-centr_lev(g, A = NULL)
+centr_lev(g)
 }
 \arguments{
 \item{g}{An \code{igraph} graph object}
-
-\item{A}{Numeric matrix; the adjacency matrix of the input graph. Default:
-\code{NULL}}
 }
 \value{
 A vector of the leverage centrality for all vertices.
@@ -25,11 +22,12 @@ neighbors. The equation is:
 where \eqn{k_i} is the degree of the \eqn{i^{th}} vertex and \eqn{N_i} is the
 set of neighbors of \emph{i}. This function replaces \emph{NaN} with
 \emph{NA} (for functions that have the argument \emph{na.rm}).
+
+This function was adapted from the igraph wiki (http://igraph.wikidot.com).
 }
 \references{
-Joyce, K.E. and Laurienti P.J. and Burdette J.H. and Hayasaka S.
-(2010) A new measure of centrality for brain networks. \emph{PLoS One},
-\bold{5(8)}, e12200. \url{https://dx.doi.org/10.1371/journal.pone.0012200}
+Joyce K.E., Laurienti P.J., Burdette J.H., Hayasaka S. (2010)
+\emph{A new measure of centrality for brain networks}. PLoS One, 5(8):e12200.
 }
 \seealso{
 Other Centrality functions: \code{\link{centr_betw_comm}}

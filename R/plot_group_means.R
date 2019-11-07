@@ -1,6 +1,6 @@
 #' Plot group distributions of volumetric measures for a given brain region
 #'
-#' This function takes a \dQuote{tidied} dataset of cortical volumetric measures
+#' This function takes a "tidied" dataset of cortical volumetric measures
 #' (thickness, volume, LGI, etc.) and plots a histogram or violin plot for 1 or
 #' more groups, and of 1 or more brain regions.
 #'
@@ -16,10 +16,11 @@
 #' @param modality A character string indicating the type of volumetric measure
 #' ('thickness', 'volume', 'lgi', or 'area')
 #' @export
+#' @importFrom scales fullseq
 #'
 #' @return A ggplot object
 #' @family Structural covariance network functions
-#' @seealso \code{\link[ggplot2]{geom_histogram}, \link[ggplot2]{geom_abline}}
+#' @seealso \code{\link[ggplot2]{geom_histogram}, \link[ggplot2]{geom_vline}}
 #' @author Christopher G. Watson, \email{cgwatson@@bu.edu}
 
 plot_volumetric <- function(dat, regions, type=c('violin', 'histogram'),
@@ -40,11 +41,6 @@ plot_volumetric <- function(dat, regions, type=c('violin', 'histogram'),
   subDT <- dat[region %in% regions]
   type <- match.arg(type)
   if (type == 'histogram') {
-    if (!requireNamespace('scales', quietly=TRUE)) {
-      stop('Must install the "scales" package to plot with histograms.')
-    } else {
-      requireNamespace('scales')
-    }
     # Allow for variable bin widths
     groups <- subDT[, levels(Group)]
     setkey(subDT, region, Group)
