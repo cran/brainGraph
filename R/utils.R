@@ -3,7 +3,7 @@
 #' @param l A list
 #' @noRd
 
-all.identical <- function(l) all(mapply(identical, head(l, 1L), tail(l, -1L)))
+all_identical <- function(l) all(mapply(identical, head(l, 1L), tail(l, -1L)))
 
 #' Convert arguments into a single list
 #'
@@ -102,8 +102,7 @@ check_sID <- function(x) {
 #'
 #' Given two sets of correlation coefficients and sample sizes, this function
 #' calculates and returns the \emph{z-scores} and \emph{p-values} associated
-#' with the difference between correlation coefficients. This function was
-#' adapted from \url{https://stackoverflow.com/a/14519007/3357706}.
+#' with the difference between correlation coefficients.
 #'
 #' @param r1,r2 Numeric (vector or matrix) of correlation coefficients for both
 #'   groups
@@ -150,7 +149,7 @@ cor.diff.test <- function(r1, r2, n, alternative=c('two.sided', 'less', 'greater
 #'
 #' If the object is a graph, graph-level attributes will be added. The
 #' elements added are:
-#' \itemize{
+#' \describe{
 #'   \item{version}{A list with R, brainGraph, and igraph versions}
 #'   \item{sys}{Character vector of system information}
 #'   \item{date}{The date and time of creation}
@@ -320,9 +319,9 @@ simpleCap <- function(x) paste0(toupper(substring(x, 1L, 1L)), substring(x, 2L))
 #' only following a plus sign.
 #'
 #' @param x A character string
-#' @param max.len Integer; the max length of one line. Default: 80
+#' @param max_len Integer; the max length of one line. Default: 80
 #' @param delim Character specifying where to end a line if it is longer than
-#'   \code{max.len}. Default: \code{'+'}
+#'   \code{max_len}. Default: \code{'+'}
 #' @param sep Character specifying what to split by. Default: \code{'\n'} (a
 #'   newline character)
 #' @keywords internal

@@ -8,11 +8,11 @@
 \title{Gateway coefficient, participation coefficient, and within-mod degree z-score}
 \usage{
 gateway_coeff(g, memb, centr = c("btwn.cent", "degree", "strength"),
-  A = NULL)
+  A = NULL, weighted = FALSE)
 
-part_coeff(g, memb, A = NULL)
+part_coeff(g, memb, A = NULL, weighted = FALSE)
 
-within_module_deg_z_score(g, memb, A = NULL)
+within_module_deg_z_score(g, memb, A = NULL, weighted = FALSE)
 }
 \arguments{
 \item{g}{An \code{igraph} graph object}
@@ -20,10 +20,13 @@ within_module_deg_z_score(g, memb, A = NULL)
 \item{memb}{A numeric vector of membership indices of each vertex}
 
 \item{centr}{Character string; the type of centrality to use in calculating
-GC (default: \code{btwn.cent})}
+GC. Default: \code{btwn.cent}}
 
 \item{A}{Numeric matrix; the adjacency matrix of the input graph. Default:
 \code{NULL}}
+
+\item{weighted}{Logical indicating whether to calculate metrics using edge
+weights. Default: \code{FALSE}}
 }
 \value{
 A vector of the participation coefficients, within-module degree
@@ -74,12 +77,12 @@ is the standard deviation.
 Vargas, E.R. and Wahl, L.M. (2014) The gateway coefficient: a
   novel metric for identifying critical connections in modular networks.
   \emph{Eur Phys J B}, \bold{87}, 161--170.
-  \url{https://dx.doi.org/10.1140/epjb/e2014-40800-7}
+  \doi{10.1140/epjb/e2014-40800-7}
 
 Guimera, R. and Amaral, L.A.N. (2005) Cartography of complex
   networks: modules and universal roles. \emph{Journal of Statistical
   Mechanics: Theory and Experiment}, \bold{02}, P02001.
-  \url{https://dx.doi.org/10.1088/1742-5468/2005/02/P02001}
+  \doi{10.1088/1742-5468/2005/02/P02001}
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}

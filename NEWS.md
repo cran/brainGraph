@@ -1,3 +1,40 @@
+# brainGraph 3.1.0
+
+2024-04-03
+
+## Minor changes
+* Remove GUI-related functionality so the package can remain on CRAN
+
+# brainGraph 3.0.3
+
+2024-02-20
+
+## Bug fixes
+* Fix bug in `import_scn` when importing data that includes subcortical gray matter
+* Export the *atlas* in `sim.rand.graph.par` when controlling for clustering coefficient
+* Fix indexing bug in `within_module_deg_z_score`
+* Refactor GUI code to avoid global variables (although `RGtk2` and `cairoDevice` have been archived)
+
+## Minor changes
+* Add colors and labeling to `plot` method for `brainGraph_resids` objects
+
+# brainGraph 3.0.2
+
+2021-02-03
+
+## Bug fixes
+* Use edge weights to calculated weighted *gateway coefficient*, *participation coefficient*, and *within-module degree z-score*
+
+# brainGraph 3.0.1
+
+2020-10-19
+
+## Bug fixes
+* Assigning *dimnames* to *null.max.all* in `mtpc` no longer throws an error
+* Creating connected random graphs (from `analysis_random_graphs`) will no longer throw an error
+    from within the hidden function `get_rand_attrs`
+* `graph_attr_dt` no longer throws an error if *subnet* is a graph-level attribute
+
 # brainGraph 3.0.0
 
 2020-09-28

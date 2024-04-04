@@ -35,7 +35,6 @@ mostly for a list of group-level graphs.
 \seealso{
 Other Plotting functions: \code{\link{Plotting GLM graphs}},
   \code{\link{plot.brainGraph}},
-  \code{\link{plot_brainGraph_gui}},
   \code{\link{plot_brainGraph_multi}}
 }
 \author{

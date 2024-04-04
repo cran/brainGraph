@@ -97,7 +97,6 @@ treatment, mediator, and outcome variable names.
 \seealso{
 Other Plotting functions: \code{\link{plot.brainGraphList}},
   \code{\link{plot.brainGraph}},
-  \code{\link{plot_brainGraph_gui}},
   \code{\link{plot_brainGraph_multi}}
 }
 \concept{Plotting functions}

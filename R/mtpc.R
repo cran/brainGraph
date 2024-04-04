@@ -69,7 +69,7 @@
 #'   David, A.S. and Jones, D.K. (2015) Overcoming the effects of false
 #'   positives and threshold bias in graph theoretical analyses of neuroimaging
 #'   data. \emph{NeuroImage}, \bold{118}, 313--333.
-#'   \url{https://dx.doi.org/10.1016/j.neuroimage.2015.05.011}
+#'   \doi{10.1016/j.neuroimage.2015.05.011}
 #' @examples
 #' \dontrun{
 #' diffs.mtpc <- mtpc(g.list=g.norm, thresholds=thresholds, N=N,
@@ -118,7 +118,7 @@ mtpc <- function(g.list, thresholds, covars, measure, contrasts, con.type=c('t',
   # Dimensions will be "thresholds X Nperms X contrasts"
   null.max.all <- aperm(sapply(res.glm, function(x) x$perm$null.max, simplify='array'),
                         c(3L, 1L, 2L))
-  dimnames(null.max.all)[[3L]] <- conNames
+  dimnames(null.max.all) <- list(NULL, NULL, conNames)
   null.max.perms <- apply(null.max.all, 3L, myMax)
   Scrit <- structure(apply(null.max.perms, 2L, mySort, index), names=conNames)
   for (x in conNames) mtpc.all[Contrast == x, S.crit := Scrit[x]]

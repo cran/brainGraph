@@ -85,7 +85,7 @@ The same options apply to \code{div.files} as well.
 
 \section{Thresholding methods}{
 
-The argument \code{threshold.by} has 4 options:
+The argument \code{threshold.by} has 5 options:
 \enumerate{
   \item \code{consensus} Threshold based on the raw (normalized, if selected)
     values in the matrices. If this is selected, it uses the
@@ -128,7 +128,7 @@ dti.mats <- create_mats(conn_files, ...)
 Roberts, JA and Perry, A and Roberts, G and Mitchell, PB and
   Breakspear, M (2017) Consistency-based thresholding of the human
   connectome. \emph{NeuroImage}. \bold{145}, 118--129.
-  \url{https://dx.doi.org/10.1016/j.neuroimage.2016.09.053}
+  \doi{10.1016/j.neuroimage.2016.09.053}
 }
 \author{
 Christopher G. Watson, \email{cgwatson@bu.edu}

@@ -115,7 +115,6 @@ plot(g.ex, label='A)', side=3, line=-2.5)
 \seealso{
 Other Plotting functions: \code{\link{Plotting GLM graphs}},
   \code{\link{plot.brainGraphList}},
-  \code{\link{plot_brainGraph_gui}},
   \code{\link{plot_brainGraph_multi}}
 }
 \author{

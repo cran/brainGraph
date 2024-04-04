@@ -1,7 +1,7 @@
 Package: brainGraph
 Type: Package
-Version: 3.0.0
-Date: 2020-09-28
+Version: 3.1.0
+Date: 2024-04-03
 Title: Graph Theory Analysis of Brain MRI Data
 Authors@R: person(given="Christopher G.", family="Watson",
                   email="cgwatson@bu.edu", role=c("aut", "cre"),
@@ -19,8 +19,8 @@ LazyData: true
 Depends: R (>= 3.5.0), igraph (>= 1.2.4),
 Imports: abind, data.table (>= 1.12.4), doParallel, foreach, grid,
         lattice, MASS, Matrix, methods, permute, parallel
-Suggests: Hmisc, RGtk2, ade4, boot, cairoDevice, car, expm, ggplot2,
-        ggrepel, gridExtra, mediation, oro.nifti, scales
+Suggests: Hmisc, ade4, boot, car, expm, ggplot2, ggrepel, gridExtra,
+        mediation, oro.nifti, scales
 License: GPL-3
 RoxygenNote: 6.1.1
 Collate: 'glm_stats.R' 'brainGraph_GLM.R' 'glm_methods.R' 'NBS.R'
@@ -32,17 +32,16 @@ Collate: 'glm_stats.R' 'brainGraph_GLM.R' 'glm_methods.R' 'NBS.R'
         'glm_fit.R' 'glm_randomise.R' 'graph_efficiency.R' 'hubs.R'
         'import.R' 'individ_contrib.R' 'list.R' 'method_helpers.R'
         'mtpc.R' 'methods.R' 'permute_group.R' 'plot_brainGraph.R'
-        'plot_brainGraph_gui.R' 'plot_brainGraph_multi.R'
-        'plot_global.R' 'plot_group_means.R' 'plot_rich_norm.R'
-        'plot_vertex_measures.R' 'random_graphs.R' 'rich_club.R'
-        'robustness.R' 's_core.R' 'set_brainGraph_attributes.R'
-        'small_world.R' 'spatial_dist.R' 'update_brainGraph_gui.R'
+        'plot_brainGraph_multi.R' 'plot_global.R' 'plot_group_means.R'
+        'plot_rich_norm.R' 'plot_vertex_measures.R' 'random_graphs.R'
+        'rich_club.R' 'robustness.R' 's_core.R'
+        'set_brainGraph_attributes.R' 'small_world.R' 'spatial_dist.R'
         'utils.R' 'utils_matrix.R' 'vertex_roles.R' 'vulnerability.R'
         'write_brainnet.R' 'zzz.R'
 NeedsCompilation: no
-Packaged: 2020-09-29 17:13:35 UTC; cwatson
+Packaged: 2024-04-04 03:25:22 UTC; cwatson
 Author: Christopher G. Watson [aut, cre]
     (<https://orcid.org/0000-0002-7082-7631>)
 Maintainer: Christopher G. Watson <cgwatson@bu.edu>
 Repository: CRAN
-Date/Publication: 2020-09-29 17:50:02 UTC
+Date/Publication: 2024-04-04 05:03:07 UTC
